@@ -101,9 +101,6 @@ pub trait TupleList {
 
     /// Converts TupleList to tuple
     fn to_tuple(self) -> Self::Tuple;
-
-    /// Converts tuple to TupleList
-    fn from_tuple(tuple: Self::Tuple) -> Self;
 }
 
 /// Generic trait implemented by all tuples (up to 20 elements)
@@ -242,8 +239,6 @@ macro_rules! define_tuple_list_traits {
         impl TupleList for EmptyTupleList {
             type Tuple = ();
             fn to_tuple(self) {}
-            fn from_tuple(_: ()) -> Self { Self }
-
         }
         impl Tuple for () {
             type TupleList = EmptyTupleList;
@@ -277,9 +272,6 @@ macro_rules! define_tuple_list_traits {
             type Tuple = ($($x),*,);
             fn to_tuple(self) -> Self::Tuple {
                 tuple_list_unpack!(self, $($x),*)
-            }
-            fn from_tuple(tuple: Self::Tuple) -> Self {
-                tuple_list_pack!(tuple, $($x),*)
             }
         }
         impl<$($x),*> Tuple for ($($x),*,) {
