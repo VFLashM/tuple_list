@@ -1,0 +1,5 @@
+[package]
+name = "tuple_list"
+version = "0.1.0"
+authors = ["Valerii Lashmanov <vflashm@gmail.com>"]
+edition = "2018"
