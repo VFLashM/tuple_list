@@ -2,26 +2,26 @@ use super::*;
 
 #[test]
 fn empty() {
-    assert_eq!(().to_tuple_list(), EmptyTupleList);
-    assert_eq!((),                 EmptyTupleList.to_tuple());
+    assert_eq!(().to_tuple_list(), ());
+    assert_eq!((),                 ().to_tuple());
 }
 
 #[test]
 fn single() {
-    assert_eq!((false,).to_tuple_list(), (false, EmptyTupleList));
-    assert_eq!((false,),                 (false, EmptyTupleList).to_tuple());
+    assert_eq!((false,).to_tuple_list(), (false, ()));
+    assert_eq!((false,),                 (false, ()).to_tuple());
 }
 
 #[test]
 fn double() {
-    assert_eq!((false, 1).to_tuple_list(), (false, (1, EmptyTupleList)));
-    assert_eq!((false, 1),                 (false, (1, EmptyTupleList)).to_tuple());
+    assert_eq!((false, 1).to_tuple_list(), (false, (1, ())));
+    assert_eq!((false, 1),                 (false, (1, ())).to_tuple());
 }
 
 #[test]
 fn triple() {
-    assert_eq!((false, 1, String::from("abc")).to_tuple_list(), (false, (1, (String::from("abc"), EmptyTupleList))));
-    assert_eq!((false, 1, String::from("abc")),                 (false, (1, (String::from("abc"), EmptyTupleList))).to_tuple());
+    assert_eq!((false, 1, String::from("abc")).to_tuple_list(), (false, (1, (String::from("abc"), ()))));
+    assert_eq!((false, 1, String::from("abc")),                 (false, (1, (String::from("abc"), ()))).to_tuple());
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn traits() {
     consume(copy);
 
     // test debug
-    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "(1, (false, (\"abc\", EmptyTupleList)))");
+    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "(1, (false, (\"abc\", ())))");
 
     // test default
     let default: tuple_list!(i32, bool, String) = Default::default();
@@ -65,7 +65,7 @@ fn traits() {
     use std::hash::Hash;
     use std::collections::hash_map::DefaultHasher;
     let mut hasher = DefaultHasher::new();
-    EmptyTupleList.hash(&mut hasher);
+    ().hash(&mut hasher);
     tuple_list!(false).hash(&mut hasher);
     tuple_list!(false, String::from("abc")).hash(&mut hasher);
 

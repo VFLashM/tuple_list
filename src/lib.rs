@@ -6,7 +6,6 @@
 //! ```
 //! use tuple_list::Tuple;
 //! use tuple_list::TupleList;
-//! use tuple_list::EmptyTupleList;
 //! 
 //! // declare custom display-like trait 
 //! trait Foo {
@@ -19,7 +18,7 @@
 //! impl Foo for bool   { fn foo(self) -> String { format!("custom_bool({})", self) } }
 //! 
 //! // define initial condition
-//! impl Foo for EmptyTupleList {
+//! impl Foo for () {
 //!   fn foo(self) -> String {
 //!     String::new()
 //!   }
@@ -47,14 +46,13 @@
 //! ```rust
 //! # use tuple_list::Tuple;
 //! # use tuple_list::TupleList;
-//! # use tuple_list::EmptyTupleList;
 //! # trait Foo {
 //! #   fn foo(self) -> String;
 //! # }
 //! # impl Foo for String { fn foo(self) -> String { format!("custom_str({})", self) } }
 //! # impl Foo for i32    { fn foo(self) -> String { format!("custom_int({})", self) } }
 //! # impl Foo for bool   { fn foo(self) -> String { format!("custom_bool({})", self) } }
-//! # impl Foo for EmptyTupleList {
+//! # impl Foo for () {
 //! #   fn foo(self) -> String {
 //! #     String::new()
 //! #   }
@@ -93,47 +91,18 @@ impl<Head, Tail> Foo for (Head, Tail) where Head: Foo, Tail: Foo {
 */
 
 // define trait recursion for regular tuples
-impl<Head, Tail, T> Foo for T where Head: Foo, Tail: TupleUncons+Foo, T: TupleUncons<Head=Head, Tail=Tail> {
+impl<Head, Tail, T> Foo for T where Head: Foo, Tail: Tuple+Foo, T: TupleCons<Head=Head, Tail=Tail> {
     fn foo(self) -> String {
         let (head, tail) = self.uncons();
         return format!("{} {}", head.foo(), tail.foo());
     }
   }
 
-// derive all types implemented by tuples
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Debug,
-    Default,
-    Hash,
-)]
-/// Struct representing empty tuple list
-///
-/// # Examples
-/// 
-/// `EmptyTupleList` becomes empty tuple when converted to tuple:
-/// 
-/// ```rust
-/// use tuple_list::EmptyTupleList;
-/// use tuple_list::Tuple;
-/// 
-/// assert_eq!(().to_tuple_list(), EmptyTupleList)
-/// ```
-/// 
-/// Empty tuple becomes `EmptyTupleList` when converted to tuple list:
-/// 
-/// ```rust
-/// use tuple_list::EmptyTupleList;
-/// use tuple_list::TupleList;
-/// 
-/// assert_eq!(EmptyTupleList.to_tuple(), ())
-/// ```
-pub struct EmptyTupleList;
+#[test]
+fn tuplefoo() {
+    let tuple = (4 as i32, false, String::from("abc"));
+    assert_eq!(tuple.foo(), "custom_int(4) custom_bool(false) custom_str(abc) ");
+}
 
 /// Generic trait implemented by all tuple lists (up to 20 elements)
 ///
@@ -144,7 +113,6 @@ pub struct EmptyTupleList;
 /// ```rust
 /// use crate::tuple_list::tuple_list;
 /// use crate::tuple_list::TupleList;
-/// use crate::tuple_list::EmptyTupleList;
 /// 
 /// let tuple_list = tuple_list!(1, false, String::from("abc"));
 /// 
@@ -169,13 +137,12 @@ pub trait TupleList {
 /// 
 /// ```rust
 /// use crate::tuple_list::Tuple;
-/// use crate::tuple_list::EmptyTupleList;
 /// 
 /// let tuple = (1, false, String::from("abc"));
 /// 
 /// assert_eq!(
 ///     tuple.to_tuple_list(), 
-///     (1, (false, (String::from("abc"), EmptyTupleList))),
+///     (1, (false, (String::from("abc"), ()))),
 /// );
 /// ```
 pub trait Tuple {
@@ -213,20 +180,15 @@ pub trait TupleAsRef<'a>: Tuple {
     fn as_mut(&'a mut self) -> Self::TupleOfMutRefs;
 }
 
-// hack needed to work around rust macro limitations
-// prepend value to tuple
-pub trait TupleCons<Head>: Tuple {
-    type ResultType: Tuple;
+/// Trait allowing to cons/uncons tuples
+///
+/// unlike `Tuple` trait, it is not implemented
+/// for empty tuples because they cannot be deconstructed
+pub trait TupleCons: Tuple {
+    type Head; /// first element of Self tuple
+    type Tail: Tuple; /// remaining elements of Self tuple
 
-    fn cons(head: Head, tail: Self) -> Self::ResultType;
-}
-
-// hack needed to work around rust macro limitations
-// split tuple into head and tail
-pub trait TupleUncons: Tuple {
-    type Head;
-    type Tail: Tuple;
-
+    fn cons(head: Self::Head, tail: Self::Tail) -> Self;
     fn uncons(self) -> (Self::Head, Self::Tail);
     fn head(self) -> Self::Head;
     fn tail(self) -> Self::Tail;
@@ -238,19 +200,18 @@ pub trait TupleUncons: Tuple {
 /// 
 /// # Examples
 ///
-/// `tuple_list!()` becomes `EmptyTupleList`
+/// `tuple_list!()` becomes `()`
 /// 
-/// `tuple_list!(i32)` becomes `(i32, EmptyTupleList)`
+/// `tuple_list!(i32)` becomes `(i32, ())`
 /// 
-/// `tuple_list!(i32, bool)` becomes `(i32, (bool, EmptyTupleList))`
+/// `tuple_list!(i32, bool)` becomes `(i32, (bool, ()))`
 /// 
-/// `tuple_list!("abc", 10, false)` becomes `("abc", (10, (false, EmptyTupleList)))`
+/// `tuple_list!("abc", 10, false)` becomes `("abc", (10, (false, ())))`
 /// 
 /// # Code Examples
 /// 
 /// ```rust
 /// use tuple_list::tuple_list;
-/// use tuple_list::EmptyTupleList;
 /// 
 /// // using tuple_list! to define a value
 /// let list1 = tuple_list!(1, false, String::from("foo"));
@@ -260,17 +221,17 @@ pub trait TupleUncons: Tuple {
 /// ```
 #[macro_export]
 macro_rules! tuple_list {
-    () => ( EmptyTupleList );
+    () => ( () );
 
     // handling types
-    ($i:ident)  => ( ($i, EmptyTupleList) );
-    ($i:ident,) => ( ($i, EmptyTupleList) );
+    ($i:ident)  => ( ($i, ()) );
+    ($i:ident,) => ( ($i, ()) );
     ($i:ident, $($e:ident),+)  => ( ($i, tuple_list!($($e),*)) );
     ($i:ident, $($e:ident),+,) => ( ($i, tuple_list!($($e),*)) );
 
     // handling values
-    ($i:expr)  => ( ($i, EmptyTupleList) );
-    ($i:expr,) => ( ($i, EmptyTupleList) );
+    ($i:expr)  => ( ($i, ()) );
+    ($i:expr,) => ( ($i, ()) );
     ($i:expr, $($e:expr),+)  => ( ($i, tuple_list!($($e),*)) );
     ($i:expr, $($e:expr),+,) => ( ($i, tuple_list!($($e),*)) );
 }
@@ -284,6 +245,7 @@ macro_rules! list_head {
 // helper, returns all arguments but the first one
 macro_rules! list_tail {
     ($i:ident) => ( () );
+    ($i:ident, $e:ident) => ( ($e,) );
     ($i:ident, $($e:ident),+) => ( ($($e),*,) );
 }
 
@@ -296,58 +258,24 @@ macro_rules! tuple_list_unpack {
 
 // helper, converts tuple into tuple list
 macro_rules! tuple_list_pack {
-    ($i:expr) => ( EmptyTupleList );
-    ($i:expr, $p:ident) => ( ($i.0, EmptyTupleList) );
+    ($i:expr) => ( () );
+    ($i:expr, $p:ident) => ( ($i.0, ()) );
     ($i:expr, $p:ident, $($e:ident),+) => ( { 
         let (head, tail) = $i.uncons();
         (head, tuple_list_pack!(tail, $($e),*))
     } );
 }
 
-macro_rules! define_tuple_cons_trait {
-    () => (
-        impl<Head> TupleCons<Head> for () {
-            type ResultType = (Head,);
-            fn cons(head: Head, _: Self) -> Self::ResultType { (head,) }
-        }
-    );
-    ($($x:ident),*) => (
-        impl<$($x),*, Head> TupleCons<Head> for ($($x),*,) {
-            type ResultType = (Head,$($x),*);
-            fn cons(head: Head, tail: Self) -> Self::ResultType {
-                let ($($x),*,) = tail;
-                return (head, $($x),*);
-            }
-        }
-    )
-}
-
-macro_rules! define_tuple_uncons_trait {
-    () => (); // no uncons for empty list
-    ($($x:ident),*) => (
-        impl<$($x),*> TupleUncons for ($($x),*,) {
-            type Head = list_head!($($x),*);
-            type Tail = list_tail!($($x),*);
-            fn uncons(self) -> (Self::Head, Self::Tail) {
-                let ($($x),*,) = self;
-                return (list_head!($($x),*), list_tail!($($x),*));
-            }
-            fn head(self) -> Self::Head { self.0 }
-            fn tail(self) -> Self::Tail { self.uncons().1 }
-        }
-    );
-}
-
-// defines Tuple, TupleList and TupleAsRef
+// defines Tuple, TupleList, TupleCons and TupleAsRef
 macro_rules! define_tuple_list_traits {
     () => (
-        impl TupleList for EmptyTupleList {
+        impl TupleList for () {
             type Tuple = ();
             fn to_tuple(self) {}
         }
         impl Tuple for () {
-            type TupleList = EmptyTupleList;
-            fn to_tuple_list(self) -> EmptyTupleList { EmptyTupleList }
+            type TupleList = ();
+            fn to_tuple_list(self) {}
         }
         impl<'a> TupleAsRef<'a> for () {
             type TupleOfRefs = ();
@@ -381,42 +309,48 @@ macro_rules! define_tuple_list_traits {
                 return ($($x),*,);
             }
         }
+        impl<$($x),*> TupleCons for ($($x),*,) {
+            type Head = list_head!($($x),*);
+            type Tail = list_tail!($($x),*);
+        
+            fn cons(head: Self::Head, tail: Self::Tail) -> Self {
+                let list_head!($($x),*) = head;
+                let list_tail!($($x),*) = tail;
+                return ($($x),*,);
+            }
+            fn uncons(self) -> (Self::Head, Self::Tail) {
+                let ($($x),*,) = self;
+                return (list_head!($($x),*), list_tail!($($x),*));
+            }
+            fn head(self) -> Self::Head { self.0 }
+            fn tail(self) -> Self::Tail { self.uncons().1 }
+        }
     );
-}
-
-macro_rules! define_all_traits {
-    ($($x:ident),*) => (
-        define_tuple_cons_trait!($($x),*);
-        define_tuple_uncons_trait!($($x),*);
-        define_tuple_list_traits!($($x),*);
-    )
 }
 
 // defining traits for all tuples up to 20 elements
 // add new lines as necessary
-define_all_traits!();
-define_all_traits!(T1);
-define_all_traits!(T1, T2);
-define_all_traits!(T1, T2, T3);
-define_all_traits!(T1, T2, T3, T4);
-define_all_traits!(T1, T2, T3, T4, T5);
-define_all_traits!(T1, T2, T3, T4, T5, T6);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18);
-define_all_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19);
-// no cons trait for last tuple because otherwise it can't satisfy constraint for result type
-define_tuple_uncons_trait!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20);
-define_tuple_list_traits! (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20);
+define_tuple_list_traits!();
+define_tuple_list_traits!(T1);
+define_tuple_list_traits!(T1, T2);
+define_tuple_list_traits!(T1, T2, T3);
+define_tuple_list_traits!(T1, T2, T3, T4);
+define_tuple_list_traits!(T1, T2, T3, T4, T5);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19);
+define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20);
 
 #[cfg(test)]
 mod tests;
