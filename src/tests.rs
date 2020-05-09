@@ -1,35 +1,5 @@
 use super::*;
 
-// Display-like recursive trait
-trait RecursiveTrait {
-    fn foo(&self) -> String;
-}
-
-// implementing RecursiveTrait for basic types
-impl RecursiveTrait for i32    { fn foo(&self) -> String { format!("recursive({:?})", self) } }
-impl RecursiveTrait for bool   { fn foo(&self) -> String { format!("recursive({:?})", self) } }
-impl RecursiveTrait for String { fn foo(&self) -> String { format!("recursive({})", self) } }
-
-// initial condition
-impl RecursiveTrait for EmptyTupleList {
-    fn foo(&self) -> String {
-        String::new()
-    }
-}
-
-// trait recursion
-impl<Head, Tail> RecursiveTrait for (Head, Tail) where Head: RecursiveTrait, Tail: RecursiveTrait {
-    fn foo(&self) -> String {
-        format!("{} {}", self.0.foo(), self.1.foo())
-    }
-}
-
-#[test]
-fn recursive_trait() {
-    assert_eq!(tuple_list!(1, false, String::from("abc")).foo(),                 "recursive(1) recursive(false) recursive(abc) ");
-    assert_eq!(           (1, false, String::from("abc")).to_tuple_list().foo(), "recursive(1) recursive(false) recursive(abc) ");
-}
-
 #[test]
 fn empty() {
     assert_eq!(().to_tuple_list(), EmptyTupleList);
