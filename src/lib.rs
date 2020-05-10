@@ -2,6 +2,8 @@
 
 //! Crate for variadic tuple metaprogramming.
 //! 
+//! # Rationale
+//! 
 //! As of writing this crate, rust does not support variadic generics
 //! and does not allow to reason about tuples in general.
 //! 
