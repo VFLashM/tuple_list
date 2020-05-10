@@ -74,22 +74,17 @@ impl PlusOne for () {
     fn plus_one(&mut self) {}
 }
 
-impl<'a, Head, Tail, T> PlusOne for T where
-    T: TupleCons<Head=Head, Tail=Tail> + TupleAsRef<'a>,
-    Head: PlusOne,
-    Tail: PlusOne + Tuple,
-{
-    fn plus_one(&'a mut self) {
-        let (head, tail) = self.as_mut().uncons();
-        head.plus_one();
-        tail.plus_one();
+impl<Head, Tail> PlusOne for (&mut Head, Tail) where Head: PlusOne, Tail: PlusOne {
+    fn plus_one(&mut self) {
+        self.0.plus_one();
+        self.1.plus_one();
     }
 }
 
 #[test]
 fn plus_one() {
     let mut tuple = (2, false, String::from("abc"));
-    tuple.plus_one();
+    tuple.as_mut().to_tuple_list().plus_one();
     let (a, b, c) = tuple;
     assert_eq!(a, 3);
     assert_eq!(b, true);

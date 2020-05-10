@@ -179,6 +179,14 @@ pub trait TupleCons: Tuple {
     fn tail(self) -> Self::Tail;
 }
 
+pub trait TupleConsRef<'a>: Tuple {
+    type Head;
+    type Tail: TupleAsRef<'a>;
+
+    fn uncons_ref(&'a     self) -> (&'a     Self::Head, <<Self as TupleConsRef<'a>>::Tail as TupleAsRef<'a>>::TupleOfRefs);
+    fn uncons_mut(&'a mut self) -> (&'a mut Self::Head, <<Self as TupleConsRef<'a>>::Tail as TupleAsRef<'a>>::TupleOfMutRefs);
+}
+
 /// Macro creating tuple list values from list of expressions.
 /// 
 /// # Examples
@@ -346,6 +354,18 @@ macro_rules! define_tuple_list_traits {
             }
             fn head(self) -> Self::Head { self.0 }
             fn tail(self) -> Self::Tail { self.uncons().1 }
+        }
+        impl<'a, $($x: 'a),*> TupleConsRef<'a> for ($($x),*,) {
+            type Head = list_head!($($x),*);
+            type Tail = list_tail!($($x),*);
+            fn uncons_ref(&'a     self) -> (&'a     Self::Head, <<Self as TupleConsRef<'a>>::Tail as TupleAsRef<'a>>::TupleOfRefs) {
+                let ($($x),*,) = self;
+                return (list_head!($($x),*), list_tail!($($x),*));
+            }
+            fn uncons_mut(&'a mut self) -> (&'a mut Self::Head, <<Self as TupleConsRef<'a>>::Tail as TupleAsRef<'a>>::TupleOfMutRefs) {
+                let ($($x),*,) = self;
+                return (list_head!($($x),*), list_tail!($($x),*));
+            }
         }
     );
 }
