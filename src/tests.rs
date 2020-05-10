@@ -1,51 +1,50 @@
 use super::*;
 
 #[test]
-fn swap_string_and_int_dual_traits() {
-    trait SwapStringAndIntTuple     {
+fn swap_string_and_int_dual_traits_with_recursion() {
+    trait SwapStringAndInt     {
         type Other;
         fn swap(self) -> Self::Other;
     }
+    impl SwapStringAndInt for i32 {
+        type Other = String;
+        fn swap(self) -> String { self.to_string() }
+    };
+    impl SwapStringAndInt for String {
+        type Other = i32;
+        fn swap(self) -> i32 { self.parse().unwrap() }
+    };
+
+    // only used for recursion on tuple lists
+    // goes to SwapStringAndInt for action conversion
     trait SwapStringAndIntTupleList {
         type Other;
         fn swap(self) -> Self::Other;
     }
-    impl SwapStringAndIntTuple     for i32 {
-        type Other = String;
-        fn swap(self) -> String { self.to_string() }
-    };
-    impl SwapStringAndIntTupleList for i32 {
-        type Other = String;
-        fn swap(self) -> String { self.to_string() }
-    };
-    impl SwapStringAndIntTuple     for String {
-        type Other = i32;
-        fn swap(self) -> i32 { self.parse().unwrap() }
-    };
-    impl SwapStringAndIntTupleList for String {
-        type Other = i32;
-        fn swap(self) -> i32 { self.parse().unwrap() }
-    };
-
     impl SwapStringAndIntTupleList for () {
         type Other = ();
         fn swap(self) {}
     }
-
-    impl<Head, Tail> SwapStringAndIntTupleList for (Head, Tail) where Head: SwapStringAndIntTupleList, Tail: SwapStringAndIntTupleList {
-        type Other = (Head::Other, Tail::Other);
+    impl<Head, Tail, TailTuple, TailTupleOther> SwapStringAndIntTupleList for (Head, Tail) where
+        Head: SwapStringAndInt,
+        Tail: TupleList<Tuple=TailTuple>,
+        TailTuple: Tuple + SwapStringAndInt<Other=TailTupleOther>,
+        TailTupleOther: Tuple,
+    {
+        type Other = (Head::Other, TailTupleOther::TupleList);
         fn swap(self) -> Self::Other {
-            (self.0.swap(), self.1.swap())
+            (self.0.swap(), self.1.to_tuple().swap().to_tuple_list())
         }
     }
 
-    impl<T, TL, OtherTL> SwapStringAndIntTuple for T where
+    impl<T, TL, OtherTL> SwapStringAndInt for T where
         T: Tuple<TupleList=TL>,
         TL: TupleList + SwapStringAndIntTupleList<Other=OtherTL>,
         OtherTL: TupleList,
     {
         type Other = OtherTL::Tuple;
         fn swap(self) -> Self::Other {
+            // goes to SwapStringAndIntTupleList for recursion
             self.to_tuple_list().swap().to_tuple()
         }
     }
@@ -59,6 +58,14 @@ fn swap_string_and_int_dual_traits() {
     assert_eq!(
         swapped,
         (String::from("4"), 2, String::from("7"), 13),
+    );
+
+    // nesting  works too
+    let nested_tuple = ((1, String::from("2"), 3), 4);
+    let nested_tuple_swapped = nested_tuple.swap();
+    assert_eq!(
+        nested_tuple_swapped,
+        ((String::from("1"), 2, String::from("3")), String::from("4")),
     );
 }
 

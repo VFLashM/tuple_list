@@ -111,6 +111,11 @@
 //! let nested_tuple = ((1, String::from("2"), 3), 4);
 //! // Following won't compile:
 //! // let nested_tuple_swapped = swap(nested_tuple);
+//! 
+//! // It is technically possible to use two separate traits
+//! // in order to resolve ambiguity between tuple lists and 
+//! // tuples, but resulting code is so complex that it's probably
+//! // not worth it.
 //! ```
 //! 
 //! # Tuple lists and tuples interoperability
