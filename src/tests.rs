@@ -1,5 +1,101 @@
 use super::*;
 
+trait SwapStringAndInt {
+    type Other;
+    fn swap(self) -> Self::Other;
+}
+
+impl SwapStringAndInt for i32 {
+    type Other = String;
+    fn swap(self) -> String { self.to_string() }
+}
+
+impl SwapStringAndInt for String {
+    type Other = i32;
+    fn swap(self) -> i32 { self.parse().unwrap() }
+}
+
+impl SwapStringAndInt for () {
+    type Other = ();
+    fn swap(self) {}
+}
+
+impl<Head, Tail> SwapStringAndInt for (Head, Tail) where Head: SwapStringAndInt, Tail: SwapStringAndInt {
+    type Other = (Head::Other, Tail::Other);
+    fn swap(self) -> Self::Other {
+        (self.0.swap(), self.1.swap())
+    }
+}
+
+#[test]
+fn swap_string_and_int() {
+    let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
+    let swapped = original.swap();
+    assert_eq!(
+        swapped,
+        tuple_list!(String::from("4"), 2, String::from("7"), 13),
+    )
+}
+
+
+trait CustomDisplay {
+    fn fmt(self) -> String;
+}
+
+impl CustomDisplay for i32    { fn fmt(self) -> String { self.to_string() } }
+impl CustomDisplay for bool   { fn fmt(self) -> String { self.to_string() } }
+impl CustomDisplay for String { fn fmt(self) -> String { self } }
+
+impl CustomDisplay for () {
+    fn fmt(self) -> String { String::new() }
+}
+
+impl<Head, Tail, T> CustomDisplay for T where
+    T: TupleCons<Head=Head, Tail=Tail>,
+    Head: CustomDisplay,
+    Tail: CustomDisplay + Tuple,
+{
+    fn fmt(self) -> String {
+        let (head, tail) = self.uncons();
+        return format!("{} {}", head.fmt(), tail.fmt());
+    }
+}
+
+
+trait PlusOne {
+    fn plus_one(&mut self);
+}
+
+impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
+impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
+impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
+
+impl PlusOne for () {
+    fn plus_one(&mut self) {}
+}
+
+impl<'a, Head, Tail, T> PlusOne for T where
+    T: TupleCons<Head=Head, Tail=Tail> + TupleAsRef<'a>,
+    Head: PlusOne,
+    Tail: PlusOne + Tuple,
+{
+    fn plus_one(&'a mut self) {
+        let (head, tail) = self.as_mut().uncons();
+        head.plus_one();
+        tail.plus_one();
+    }
+}
+
+#[test]
+fn plus_one() {
+    let mut tuple = (2, false, String::from("abc"));
+    tuple.plus_one();
+    let (a, b, c) = tuple;
+    assert_eq!(a, 3);
+    assert_eq!(b, true);
+    assert_eq!(&c, "abc1");
+}
+
 #[test]
 fn empty() {
     assert_eq!(().to_tuple_list(), ());
@@ -43,7 +139,6 @@ fn complex_values() {
     assert_eq!(b, String::from("abc"));
     assert_eq!(c, 5);
 }
-
 
 /*
 #[test]
