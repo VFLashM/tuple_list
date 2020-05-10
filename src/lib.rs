@@ -102,7 +102,7 @@ impl<Head, Tail, T> Foo for T where Head: Foo, Tail: Tuple+Foo, T: TupleCons<Hea
 fn tuplefoo() {
     let tuple = (4 as i32, false, String::from("abc"));
     assert_eq!(tuple.foo(), "custom_int(4) custom_bool(false) custom_str(abc) ");
-}
+} 
 
 /// Generic trait implemented by all tuple lists (up to 20 elements)
 ///
@@ -196,28 +196,46 @@ pub trait TupleCons: Tuple {
 
 /// Macro creating tuple list from list of arguments
 /// 
-/// Can be used to create both values and types
+/// See crate documentation for explanation of what tuple list is
 /// 
 /// # Examples
-///
-/// `tuple_list!()` becomes `()`
 /// 
-/// `tuple_list!(i32)` becomes `(i32, ())`
-/// 
-/// `tuple_list!(i32, bool)` becomes `(i32, (bool, ()))`
-/// 
-/// `tuple_list!("abc", 10, false)` becomes `("abc", (10, (false, ())))`
-/// 
-/// # Code Examples
+/// Can be used to define values:
 /// 
 /// ```rust
 /// use tuple_list::tuple_list;
 /// 
-/// // using tuple_list! to define a value
-/// let list1 = tuple_list!(1, false, String::from("foo"));
+/// let list = tuple_list!(10, false, "foo");
 /// 
-/// // using tuple_list! to define a type
-/// let list2 : tuple_list!(i32, bool, String) = Default::default();
+/// assert_eq!(
+///   list,
+///   (10, (false, ("foo", ()))),
+/// )
+/// ```
+/// 
+/// To define types:
+/// 
+/// ```rust
+/// # use tuple_list::tuple_list;
+/// #
+/// let list: tuple_list!(i32, bool, String) = Default::default();
+/// 
+/// assert_eq!(
+///   list,
+///   (00, (false, (String::new(), ()))),
+/// )
+/// ```
+/// 
+/// And to unpack existing values:
+/// 
+/// ```rust
+/// # use tuple_list::tuple_list;
+/// #
+/// let tuple_list!(a, b, c) = (10, (false, ("foo", ())));
+/// 
+/// assert_eq!(a, 10);
+/// assert_eq!(b, false);
+/// assert_eq!(c, "foo");
 /// ```
 #[macro_export]
 macro_rules! tuple_list {
@@ -234,6 +252,14 @@ macro_rules! tuple_list {
     ($i:expr,) => ( ($i, ()) );
     ($i:expr, $($e:expr),+)  => ( ($i, tuple_list!($($e),*)) );
     ($i:expr, $($e:expr),+,) => ( ($i, tuple_list!($($e),*)) );
+    
+    // handling types
+    /*
+    ($i:ty)  => ( ($i, ()) );
+    ($i:ty,) => ( ($i, ()) );
+    ($i:ty, $($e:ty),+)  => ( ($i, tuple_list!($($e),*)) );
+    ($i:ty, $($e:ty),+,) => ( ($i, tuple_list!($($e),*)) );
+    */
 }
 
 // helper, returns first argument, ignores the rest
@@ -312,7 +338,6 @@ macro_rules! define_tuple_list_traits {
         impl<$($x),*> TupleCons for ($($x),*,) {
             type Head = list_head!($($x),*);
             type Tail = list_tail!($($x),*);
-        
             fn cons(head: Self::Head, tail: Self::Tail) -> Self {
                 let list_head!($($x),*) = head;
                 let list_tail!($($x),*) = tail;

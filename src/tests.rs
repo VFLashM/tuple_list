@@ -25,6 +25,26 @@ fn triple() {
 }
 
 #[test]
+fn complex_types() {
+    use std::collections::HashMap;
+    let t : tuple_list!(i32, &'static str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
+    let tuple_list!(a, b, c) = t;
+    assert_eq!(a, 1);
+    assert_eq!(b, "abc");
+    assert_eq!(c, HashMap::new());
+}
+
+#[test]
+fn complex_values() {
+    let s = String::from("abc");
+    let t = tuple_list!(s.len(), s, 2 + 3);
+    let tuple_list!(a, b, c) = t;
+    assert_eq!(a, 3);
+    assert_eq!(b, String::from("abc"));
+    assert_eq!(c, 5);
+}
+
+#[test]
 fn trailing_comma() {
     { // values
         let _a = tuple_list!();
