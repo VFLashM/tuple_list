@@ -345,6 +345,9 @@ pub trait NonEmptyTuple: Tuple {
 /// ```
 /// 
 /// Unfortunately, due to rust macro limitations only simple, non-nested match patterns are supported.
+/// 
+/// It is technically possible to create two separate traits for tuples and tuple lists in order
+/// to avoid ambiguity, but result still won't be ergonomic and probably isn't worth it.
 #[macro_export]
 macro_rules! tuple_list {
     () => ( () );

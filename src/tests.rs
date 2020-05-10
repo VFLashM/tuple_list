@@ -1,67 +1,63 @@
 use super::*;
 
 #[test]
-fn swap_string_and_int_simple_tuple() {
-    trait SwapStringAndInt {
+fn swap_string_and_int_dual_traits() {
+    trait SwapStringAndIntTuple     {
         type Other;
         fn swap(self) -> Self::Other;
     }
-    impl SwapStringAndInt for i32 {
+    trait SwapStringAndIntTupleList {
+        type Other;
+        fn swap(self) -> Self::Other;
+    }
+    impl SwapStringAndIntTuple     for i32 {
         type Other = String;
         fn swap(self) -> String { self.to_string() }
-    }
-    impl SwapStringAndInt for String {
+    };
+    impl SwapStringAndIntTupleList for i32 {
+        type Other = String;
+        fn swap(self) -> String { self.to_string() }
+    };
+    impl SwapStringAndIntTuple     for String {
         type Other = i32;
         fn swap(self) -> i32 { self.parse().unwrap() }
-    }
+    };
+    impl SwapStringAndIntTupleList for String {
+        type Other = i32;
+        fn swap(self) -> i32 { self.parse().unwrap() }
+    };
 
-    // Now we have to implement trait for empty tuple,
-    // thus defining initial condition.
-    impl SwapStringAndInt for () {
+    impl SwapStringAndIntTupleList for () {
         type Other = ();
         fn swap(self) {}
     }
 
-    // Now we can implement trait for a non-empty tuple list, 
-    // this defining recursion and supporting tuple lists of arbitrary length.
-    impl<Head, Tail> SwapStringAndInt for (Head, Tail) where Head: SwapStringAndInt, Tail: SwapStringAndInt {
+    impl<Head, Tail> SwapStringAndIntTupleList for (Head, Tail) where Head: SwapStringAndIntTupleList, Tail: SwapStringAndIntTupleList {
         type Other = (Head::Other, Tail::Other);
         fn swap(self) -> Self::Other {
             (self.0.swap(), self.1.swap())
         }
     }
 
+    impl<T, TL, OtherTL> SwapStringAndIntTuple for T where
+        T: Tuple<TupleList=TL>,
+        TL: TupleList + SwapStringAndIntTupleList<Other=OtherTL>,
+        OtherTL: TupleList,
+    {
+        type Other = OtherTL::Tuple;
+        fn swap(self) -> Self::Other {
+            self.to_tuple_list().swap().to_tuple()
+        }
+    }
+
     // Create tuple list value.
-    let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
+    let original = (4, String::from("2"), 7, String::from("13"));
 
     // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
     // on each member and returnign tuple list of resulting values.
     let swapped = original.swap();
     assert_eq!(
         swapped,
-        tuple_list!(String::from("4"), 2, String::from("7"), 13),
-    );
-
-    // Since tuple lists now implement SwapStringAndInt,
-    // they can even contain nested tuple lists:
-    let nested = tuple_list!(tuple_list!(1, String::from("2")), 3);
-    let nested_swapped = nested.swap();
-    assert_eq!(
-        nested_swapped,
-        tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
-    );
-
-    fn swap<T, TL, OtherTL>(tuple: T) -> OtherTL::Tuple where
-        T: Tuple<TupleList=TL>,
-        TL: TupleList + SwapStringAndInt<Other=OtherTL>,
-        OtherTL: TupleList,
-    {
-        tuple.to_tuple_list().swap().to_tuple()
-    }
-    let original_tuple = (4, String::from("2"), 7, String::from("13"));
-    let swapped_tuple = swap(original_tuple);
-    assert_eq!(
-        swapped_tuple,
         (String::from("4"), 2, String::from("7"), 13),
     );
 }
