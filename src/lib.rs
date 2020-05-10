@@ -180,27 +180,47 @@ pub trait TupleAsRef<'a>: Tuple {
     fn as_mut(&'a mut self) -> Self::TupleOfMutRefs;
 }
 
-/// Trait allowing to cons/uncons tuples
-///
-/// unlike `Tuple` trait, it is not implemented
-/// for empty tuples because they cannot be deconstructed
+/// Trait allowing to recursively construct/deconstruct tuples.
+/// 
+/// Implemented for all non-empty tuples up to 12 elements.
+/// 
+/// Empty tuple does not implement this trait because it cannot be deconstructed.
 pub trait TupleCons: Tuple {
-    type Head; /// first element of Self tuple
-    type Tail: Tuple; /// remaining elements of Self tuple
+    /// First element of Self tuple.
+    type Head;
+    /// Tuple of remaining elements of Self tuple.
+    type Tail: Tuple;
 
+    /// Constructs Self tuple given first element and tuple of remaining elements.
+    /// 
+    /// ```
+    /// use tuple_list::TupleCons;
+    /// 
+    /// let a = TupleCons::cons(4, ());
+    /// assert_eq!(
+    ///     TupleCons::cons(4 as i32, ()),
+    ///     (4 as i32,),
+    /// );
+    /// assert_eq!(
+    ///     TupleCons::cons(4 as i32, (false,)),
+    ///     (4 as i32, false),
+    /// );
+    /// assert_eq!(
+    ///     TupleCons::cons(4 as i32, (false, "foo")),
+    ///     (4 as i32, false, "foo"),
+    /// );
+    /// ```
     fn cons(head: Self::Head, tail: Self::Tail) -> Self;
     fn uncons(self) -> (Self::Head, Self::Tail);
     fn head(self) -> Self::Head;
     fn tail(self) -> Self::Tail;
 }
 
-/// Macro creating tuple list from list of arguments
+/// Macro creating tuple list values from list of expressions.
 /// 
-/// See crate documentation for explanation of what tuple list is
+/// See crate documentation for explanation of what tuple list is.
 /// 
 /// # Examples
-/// 
-/// Can be used to define values:
 /// 
 /// ```rust
 /// use tuple_list::tuple_list;
@@ -213,20 +233,27 @@ pub trait TupleCons: Tuple {
 /// )
 /// ```
 /// 
-/// To define types:
+/// `tuple_list!` can also be used to define trivial types,
+/// but using macro `tuple_list_type!` is recommended instead:
 /// 
 /// ```rust
 /// # use tuple_list::tuple_list;
-/// #
+/// # use std::collections::HashMap;
+/// // trivial types work just fine with tuple_list!
 /// let list: tuple_list!(i32, bool, String) = Default::default();
 /// 
-/// assert_eq!(
-///   list,
-///   (00, (false, (String::new(), ()))),
-/// )
+/// // more complex types will fail when using tuple_list!
+/// // but will work with tuple_list_type!
+/// use tuple_list::tuple_list_type;
+/// 
+/// let list: tuple_list_type!(
+///     &'static str, 
+///     HashMap<i32, i32>, 
+///     <std::vec::Vec<bool> as IntoIterator>::Item,
+/// ) = tuple_list!("foo", HashMap::new(), false);
 /// ```
 /// 
-/// And to unpack existing values:
+/// It can also be used to unpack tuples:
 /// 
 /// ```rust
 /// # use tuple_list::tuple_list;
@@ -237,29 +264,36 @@ pub trait TupleCons: Tuple {
 /// assert_eq!(b, false);
 /// assert_eq!(c, "foo");
 /// ```
+/// 
+/// Unfortunately, only simple, non-nested match patterns are supported.
 #[macro_export]
 macro_rules! tuple_list {
     () => ( () );
 
-    // handling types
+    // handling simple identifiers, for limited types and patterns support
     ($i:ident)  => ( ($i, ()) );
     ($i:ident,) => ( ($i, ()) );
-    ($i:ident, $($e:ident),+)  => ( ($i, tuple_list!($($e),*)) );
-    ($i:ident, $($e:ident),+,) => ( ($i, tuple_list!($($e),*)) );
+    ($i:ident, $($e:ident),*)  => ( ($i, tuple_list!($($e),*)) );
+    ($i:ident, $($e:ident),*,) => ( ($i, tuple_list!($($e),*)) );
 
-    // handling values
+    // handling complex expressions
     ($i:expr)  => ( ($i, ()) );
     ($i:expr,) => ( ($i, ()) );
-    ($i:expr, $($e:expr),+)  => ( ($i, tuple_list!($($e),*)) );
-    ($i:expr, $($e:expr),+,) => ( ($i, tuple_list!($($e),*)) );
+    ($i:expr, $($e:expr),*)  => ( ($i, tuple_list!($($e),*)) );
+    ($i:expr, $($e:expr),*,) => ( ($i, tuple_list!($($e),*)) );
+}
+
+/// Macro creating tuple list types from list of element types.
+/// 
+/// See macro `tuple_list!` for details.
+#[macro_export]
+macro_rules! tuple_list_type {
+    () => ( () );
     
-    // handling types
-    /*
     ($i:ty)  => ( ($i, ()) );
     ($i:ty,) => ( ($i, ()) );
-    ($i:ty, $($e:ty),+)  => ( ($i, tuple_list!($($e),*)) );
-    ($i:ty, $($e:ty),+,) => ( ($i, tuple_list!($($e),*)) );
-    */
+    ($i:ty, $($e:ty),*)  => ( ($i, tuple_list_type!($($e),*)) );
+    ($i:ty, $($e:ty),*,) => ( ($i, tuple_list_type!($($e),*)) );
 }
 
 // helper, returns first argument, ignores the rest
@@ -311,14 +345,14 @@ macro_rules! define_tuple_list_traits {
         }
     );
     ($($x:ident),*) => (
-        impl<$($x),*> TupleList for tuple_list!($($x),*) {
+        impl<$($x),*> TupleList for tuple_list_type!($($x),*) {
             type Tuple = ($($x),*,);
             fn to_tuple(self) -> Self::Tuple {
                 tuple_list_unpack!(self, $($x),*)
             }
         }
         impl<$($x),*> Tuple for ($($x),*,) {
-            type TupleList = tuple_list!($($x),*);
+            type TupleList = tuple_list_type!($($x),*);
             fn to_tuple_list(self) -> Self::TupleList {
                 tuple_list_pack!(self, $($x),*)
             }
@@ -353,8 +387,8 @@ macro_rules! define_tuple_list_traits {
     );
 }
 
-// defining traits for all tuples up to 20 elements
-// add new lines as necessary
+// rust only defines common traits for tuples up to 12 elements
+// we'll do the same here, increase number as needed
 define_tuple_list_traits!();
 define_tuple_list_traits!(T1);
 define_tuple_list_traits!(T1, T2);
@@ -368,14 +402,6 @@ define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
 define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
 define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19);
-define_tuple_list_traits!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20);
 
 #[cfg(test)]
 mod tests;

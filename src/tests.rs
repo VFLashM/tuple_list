@@ -27,7 +27,7 @@ fn triple() {
 #[test]
 fn complex_types() {
     use std::collections::HashMap;
-    let t : tuple_list!(i32, &'static str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
+    let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
     let tuple_list!(a, b, c) = t;
     assert_eq!(a, 1);
     assert_eq!(b, "abc");
@@ -44,6 +44,18 @@ fn complex_values() {
     assert_eq!(c, 5);
 }
 
+
+/*
+#[test]
+fn complex_unpack() {
+    let tuple_list!(a, Some(tuple_list!(b, c, d))) = tuple_list!(1, Some(tuple_list!(2, 3, 4)))
+    assert_eq!(a, 1);
+    assert_eq!(b, 2);
+    assert_eq!(c, 3);
+    assert_eq!(d, 4);
+}
+*/
+
 #[test]
 fn trailing_comma() {
     { // values
@@ -54,23 +66,23 @@ fn trailing_comma() {
         let _e = tuple_list!(0,false,);
     }
     { // types
-        let _a : tuple_list!() = Default::default();
-        let _b : tuple_list!(i32) = Default::default();
-        let _c : tuple_list!(i32,) = Default::default();
-        let _d : tuple_list!(i32,bool) = Default::default();
-        let _e : tuple_list!(i32,bool,) = Default::default();
+        let _a : tuple_list_type!() = Default::default();
+        let _b : tuple_list_type!(i32) = Default::default();
+        let _c : tuple_list_type!(i32,) = Default::default();
+        let _d : tuple_list_type!(i32,bool) = Default::default();
+        let _e : tuple_list_type!(i32,bool,) = Default::default();
     }
 }
 
 #[test]
 fn traits() {
     // test clone (and eq)
-    let list : tuple_list!(bool, i32, String) = tuple_list!(false, 1, String::from("abc"));
+    let list : tuple_list_type!(bool, i32, String) = tuple_list!(false, 1, String::from("abc"));
     assert_eq!(list.clone(), list); // test clone and eq
 
     // test copy
-    fn consume(_: tuple_list!(i32, bool)) {}
-    let copy : tuple_list!(i32, bool) = tuple_list!(5, false);
+    fn consume(_: tuple_list_type!(i32, bool)) {}
+    let copy : tuple_list_type!(i32, bool) = tuple_list!(5, false);
     consume(copy);
     consume(copy);
 
@@ -78,7 +90,7 @@ fn traits() {
     assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "(1, (false, (\"abc\", ())))");
 
     // test default
-    let default: tuple_list!(i32, bool, String) = Default::default();
+    let default: tuple_list_type!(i32, bool, String) = Default::default();
     assert_eq!(default, tuple_list!(0, false, String::new()));
 
     // test hash, ensure compiles
