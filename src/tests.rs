@@ -51,7 +51,7 @@ impl CustomDisplay for () {
 }
 
 impl<Head, Tail, T> CustomDisplay for T where
-    T: TupleCons<Head=Head, Tail=Tail>,
+    T: NonEmptyTuple<Head=Head, Tail=Tail>,
     Head: CustomDisplay,
     Tail: CustomDisplay + Tuple,
 {
@@ -62,6 +62,21 @@ impl<Head, Tail, T> CustomDisplay for T where
 }
 
 
+#[test]
+fn custom_display() {
+    let tuple = (2, false, String::from("abc"));
+    assert_eq!(
+        tuple.fmt(),
+        "2 false abc ",
+    );
+
+    let recursive_tuple = (2, false, String::from("abc"), (3, true, String::from("def")));
+    assert_eq!(
+        recursive_tuple.fmt(),
+        "2 false abc 3 true def  ",
+    );
+}
+
 trait PlusOne {
     fn plus_one(&mut self);
 }
@@ -70,21 +85,30 @@ impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
 impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
 impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
 
-impl PlusOne for () {
-    fn plus_one(&mut self) {}
+trait PlusOneTuple {
+    fn plus_one(self);
 }
 
-impl<Head, Tail> PlusOne for (&mut Head, Tail) where Head: PlusOne, Tail: PlusOne {
-    fn plus_one(&mut self) {
-        self.0.plus_one();
-        self.1.plus_one();
+impl PlusOneTuple for () {
+    fn plus_one(self) {}
+}
+
+impl<'a, Head, Tail, T> PlusOneTuple for T where 
+    Head: PlusOne + 'a,
+    Tail: PlusOneTuple + Tuple + 'a,
+    T: NonEmptyTuple<Head=&'a mut Head, Tail=Tail> + 'a
+{
+    fn plus_one(self) {
+        let (head, tail) = self.uncons();
+        head.plus_one();
+        tail.plus_one();
     }
 }
 
 #[test]
 fn plus_one() {
     let mut tuple = (2, false, String::from("abc"));
-    tuple.as_mut().to_tuple_list().plus_one();
+    tuple.as_mut().plus_one();
     let (a, b, c) = tuple;
     assert_eq!(a, 3);
     assert_eq!(b, true);
