@@ -1,69 +1,144 @@
 use super::*;
 
-trait SwapStringAndInt {
-    type Other;
-    fn swap(self) -> Self::Other;
-}
-
-impl SwapStringAndInt for i32 {
-    type Other = String;
-    fn swap(self) -> String { self.to_string() }
-}
-
-impl SwapStringAndInt for String {
-    type Other = i32;
-    fn swap(self) -> i32 { self.parse().unwrap() }
-}
-
-impl SwapStringAndInt for () {
-    type Other = ();
-    fn swap(self) {}
-}
-
-impl<Head, Tail> SwapStringAndInt for (Head, Tail) where Head: SwapStringAndInt, Tail: SwapStringAndInt {
-    type Other = (Head::Other, Tail::Other);
-    fn swap(self) -> Self::Other {
-        (self.0.swap(), self.1.swap())
-    }
-}
-
 #[test]
-fn swap_string_and_int() {
+fn swap_string_and_int_simple_tuple() {
+    trait SwapStringAndInt {
+        type Other;
+        fn swap(self) -> Self::Other;
+    }
+    impl SwapStringAndInt for i32 {
+        type Other = String;
+        fn swap(self) -> String { self.to_string() }
+    }
+    impl SwapStringAndInt for String {
+        type Other = i32;
+        fn swap(self) -> i32 { self.parse().unwrap() }
+    }
+
+    // Now we have to implement trait for empty tuple,
+    // thus defining initial condition.
+    impl SwapStringAndInt for () {
+        type Other = ();
+        fn swap(self) {}
+    }
+
+    // Now we can implement trait for a non-empty tuple list, 
+    // this defining recursion and supporting tuple lists of arbitrary length.
+    impl<Head, Tail> SwapStringAndInt for (Head, Tail) where Head: SwapStringAndInt, Tail: SwapStringAndInt {
+        type Other = (Head::Other, Tail::Other);
+        fn swap(self) -> Self::Other {
+            (self.0.swap(), self.1.swap())
+        }
+    }
+
+    impl<T, TL> SwapStringAndInt for T where
+        T: Tuple<TupleList=TL>,
+        TL: TupleList + SwapStringAndInt,
+        //Head: SwapStringAndInt,
+        //Tail: SwapStringAndInt<Other=TailOther>,
+        //TailOther: TupleCons<Head::Other>,
+    {
+        type Other = ();
+        fn swap(self) -> Self::Other {
+            //self.uncons().swap()
+        }
+    }
+
+    // Create tuple list value.
     let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
+
+    // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
+    // on each member and returnign tuple list of resulting values.
     let swapped = original.swap();
     assert_eq!(
         swapped,
         tuple_list!(String::from("4"), 2, String::from("7"), 13),
-    )
+    );
+
+    // Since tuple lists now implement SwapStringAndInt,
+    // they can even contain nested tuple lists:
+    let nested = tuple_list!(tuple_list!(1, String::from("2")), 3);
+    let nested_swapped = nested.swap();
+    assert_eq!(
+        nested_swapped,
+        tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
+    );
 }
-
-
-trait CustomDisplay {
-    fn fmt(self) -> String;
-}
-
-impl CustomDisplay for i32    { fn fmt(self) -> String { self.to_string() } }
-impl CustomDisplay for bool   { fn fmt(self) -> String { self.to_string() } }
-impl CustomDisplay for String { fn fmt(self) -> String { self } }
-
-impl CustomDisplay for () {
-    fn fmt(self) -> String { String::new() }
-}
-
-impl<Head, Tail, T> CustomDisplay for T where
-    T: NonEmptyTuple<Head=Head, Tail=Tail>,
-    Head: CustomDisplay,
-    Tail: CustomDisplay + Tuple,
-{
-    fn fmt(self) -> String {
-        let (head, tail) = self.uncons();
-        return format!("{} {}", head.fmt(), tail.fmt());
-    }
-}
-
 
 #[test]
-fn custom_display() {
+fn swap_string_and_int_tuple() {
+    trait SwapStringAndInt {
+        type Other;
+        fn swap(self) -> Self::Other;
+    }
+    impl SwapStringAndInt for i32 {
+        type Other = String;
+        fn swap(self) -> String { self.to_string() }
+    }
+    impl SwapStringAndInt for String {
+        type Other = i32;
+        fn swap(self) -> i32 { self.parse().unwrap() }
+    }
+
+    impl SwapStringAndInt for () {
+        type Other = ();
+        fn swap(self) {}
+    }
+
+    impl<Head, Tail, TailOther, T> SwapStringAndInt for T where 
+        T: NonEmptyTuple<Head=Head, Tail=Tail>,
+        Head: SwapStringAndInt,
+        Tail: Tuple + SwapStringAndInt<Other=TailOther>,
+        TailOther: TupleCons<Head::Other>,
+    {
+        type Other = TailOther::ResultingTuple; // resulting from TupleCons
+        fn swap(self) -> Self::Other {
+            let (head, tail) = self.uncons();
+            return TupleCons::cons(head.swap(), tail.swap());
+        }
+    }
+
+    let original = (4, String::from("2"), 7, String::from("13"));
+
+    let swapped = original.swap();
+    assert_eq!(
+        swapped,
+        (String::from("4"), 2, String::from("7"), 13),
+    );
+
+    let nested = ((1, String::from("2")), 3);
+    let nested_swapped = nested.swap();
+    assert_eq!(
+        nested_swapped,
+        ((String::from("1"), 2), String::from("3")),
+    );
+}
+
+#[test]
+fn custom_display_tuple() {
+    // Define trait and implement it for several standard types.
+    trait CustomDisplay {
+        fn fmt(self) -> String;
+    }
+    impl CustomDisplay for i32    { fn fmt(self) -> String { self.to_string() } }
+    impl CustomDisplay for bool   { fn fmt(self) -> String { self.to_string() } }
+    impl CustomDisplay for String { fn fmt(self) -> String { self } }
+
+    impl CustomDisplay for () {
+        fn fmt(self) -> String { String::new() }
+    }
+
+    impl<Head, Tail, T> CustomDisplay for T where
+        T: NonEmptyTuple<Head=Head, Tail=Tail>,
+        Head: CustomDisplay,
+        Tail: CustomDisplay + Tuple,
+    {
+        fn fmt(self) -> String {
+            let (head, tail) = self.uncons();
+            return format!("{} {}", head.fmt(), tail.fmt());
+        }
+    }
+
     let tuple = (2, false, String::from("abc"));
     assert_eq!(
         tuple.fmt(),
@@ -77,38 +152,137 @@ fn custom_display() {
     );
 }
 
-trait PlusOne {
-    fn plus_one(&mut self);
-}
-
-impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
-impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
-impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
-
-trait PlusOneTuple {
-    fn plus_one(self);
-}
-
-impl PlusOneTuple for () {
-    fn plus_one(self) {}
-}
-
-impl<'a, Head, Tail, T> PlusOneTuple for T where 
-    Head: PlusOne + 'a,
-    Tail: PlusOneTuple + Tuple + 'a,
-    T: NonEmptyTuple<Head=&'a mut Head, Tail=Tail> + 'a
-{
-    fn plus_one(self) {
-        let (head, tail) = self.uncons();
-        head.plus_one();
-        tail.plus_one();
+#[test]
+fn plus_one_tuple() {
+    trait PlusOne<'a> {
+        fn plus_one(&'a mut self);
     }
+
+    impl<'a> PlusOne<'a> for i32    { fn plus_one(&'a mut self) { *self += 1; } }
+    impl<'a> PlusOne<'a> for bool   { fn plus_one(&'a mut self) { *self = !*self; } }
+    impl<'a> PlusOne<'a> for String { fn plus_one(&'a mut self) { self.push('1'); } }
+
+    trait PlusOneTuple: Tuple {
+        fn plus_one(self);
+    }
+
+    impl PlusOneTuple for () {
+        fn plus_one(self) {}
+    }
+
+    impl<'a, Head, Tail, T> PlusOneTuple for T where 
+        Head: PlusOne<'a> + 'a,
+        Tail: PlusOneTuple + 'a,
+        T: NonEmptyTuple<Head=&'a mut Head, Tail=Tail> + 'a
+    {
+        fn plus_one(self) {
+            let (head, tail) = self.uncons();
+            head.plus_one();
+            tail.plus_one();
+        }
+    }
+
+    impl<'a, T, RT> PlusOne<'a> for T where
+        T: NonEmptyTuple + TupleAsRef<'a, TupleOfMutRefs=RT>,
+        RT: PlusOneTuple,
+    {
+        fn plus_one(&'a mut self) {
+            self.as_mut().plus_one()
+        }
+    }
+
+    let mut tuple = (2, false, String::from("abc"));
+    tuple.plus_one();
+    let (a, b, c) = tuple;
+    assert_eq!(a, 3);
+    assert_eq!(b, true);
+    assert_eq!(&c, "abc1");
 }
 
 #[test]
-fn plus_one() {
+fn plus_one_tuple_list() {
+    trait PlusOne<'a> {
+        fn plus_one(&'a mut self);
+    }
+
+    impl<'a> PlusOne<'a> for i32    { fn plus_one(&'a mut self) { *self += 1; } }
+    impl<'a> PlusOne<'a> for bool   { fn plus_one(&'a mut self) { *self = !*self; } }
+    impl<'a> PlusOne<'a> for String { fn plus_one(&'a mut self) { self.push('1'); } }
+
+    trait PlusOneTupleList {
+        fn plus_one(self);
+    }
+
+    impl PlusOneTupleList for () {
+        fn plus_one(self) {}
+    }
+
+    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
+        Head: PlusOne<'a> + 'a,
+        Tail: PlusOneTupleList + 'a,
+    {
+        fn plus_one(self) {
+            self.0.plus_one();
+            self.1.plus_one();
+        }
+    }
+
+    impl<'a, T, RT, Head, Tail> PlusOne<'a> for T where
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
+        RT: Tuple<TupleList=(Head, Tail)>,
+        (Head, Tail): TupleList + PlusOneTupleList,
+    {
+        fn plus_one(&'a mut self) {
+            self.as_mut().to_tuple_list().plus_one();
+        }
+    }
+
     let mut tuple = (2, false, String::from("abc"));
-    tuple.as_mut().plus_one();
+    tuple.plus_one();
+    let (a, b, c) = tuple;
+    assert_eq!(a, 3);
+    assert_eq!(b, true);
+    assert_eq!(&c, "abc1");
+}
+
+#[test]
+fn plus_one_adapter() {
+    trait PlusOne {
+        fn plus_one(&mut self);
+    }
+
+    impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
+    impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
+    impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
+
+    trait PlusOneTupleList {
+        fn plus_one(self);
+    }
+
+    impl PlusOneTupleList for () {
+        fn plus_one(self) {}
+    }
+
+    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
+        Head: PlusOne + 'a,
+        Tail: PlusOneTupleList + 'a,
+    {
+        fn plus_one(self) {
+            self.0.plus_one();
+            self.1.plus_one();
+        }
+    }
+
+    fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
+        RT: Tuple<TupleList=(Head, Tail)>,
+        (Head, Tail): TupleList + PlusOneTupleList,
+    {
+        tuple.as_mut().to_tuple_list().plus_one();
+    }
+
+    let mut tuple = (2, false, String::from("abc"));
+    plus_one(&mut tuple);
     let (a, b, c) = tuple;
     assert_eq!(a, 3);
     assert_eq!(b, true);

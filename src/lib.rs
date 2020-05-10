@@ -1,4 +1,5 @@
 #![allow(non_snake_case)] // non-snake case identifiers used in define_tuple_list_traits! for simplicity
+#![doc(html_playground_url = "https://play.rust-lang.org/")]
 
 //! Crate for variadic tuple metaprogramming.
 //! 
@@ -22,19 +23,81 @@
 //! This crate calls such structures "tuple lists" and provides a set of traits and macros
 //! allowing one to conveniently work with them.
 //! 
-//! # Tuple construction/deconstruction
+//! # Example of a recursively defined trait for tuple lists
 //! 
-//! `NonEmptyTuple` trait provides a way to recursively deconstruct tuples.
+//! Let's implement a simple trait which converts i32 to String and vice versa.
 //! 
-//! `TupleCons` trait provides a way to recursively construct tuples.
+//! ```
+//! // Let's define and implement trait for i32 and String
+//! // so that it converts String to i32 and vice versa.
+//! trait SwapStringAndInt {
+//!     type Other;
+//!     fn swap(self) -> Self::Other;
+//! }
+//! impl SwapStringAndInt for i32 {
+//!     type Other = String;
+//!     fn swap(self) -> String { self.to_string() }
+//! }
+//! impl SwapStringAndInt for String {
+//!     type Other = i32;
+//!     fn swap(self) -> i32 { self.parse().unwrap() }
+//! }
 //! 
-//! By using them together it is possible to recursively implement simple traits
-//! for regular tuples, but this approach is way more restrictive than using
-//! tuple lists.
+//! // Now we have to implement trait for empty tuple,
+//! // thus defining initial condition.
+//! impl SwapStringAndInt for () {
+//!     type Other = ();
+//!     fn swap(self) {}
+//! }
 //! 
-//! # Examples
+//! // Now we can implement trait for a non-empty tuple list, 
+//! // this defining recursion and supporting tuple lists of arbitrary length.
+//! impl<Head, Tail> SwapStringAndInt for (Head, Tail) where Head: SwapStringAndInt, Tail: SwapStringAndInt {
+//!     type Other = (Head::Other, Tail::Other);
+//!     fn swap(self) -> Self::Other {
+//!         (self.0.swap(), self.1.swap())
+//!     }
+//! }
 //! 
-//! For examples please see README in source repository.
+//! // `tuple_list!` macro creates tuple lists from list of arguments.
+//! use tuple_list::tuple_list;
+//! 
+//! // Create tuple list value.
+//! let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
+//! 
+//! // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
+//! // on each member and returnign tuple list of resulting values.
+//! let swapped = original.swap();
+//! assert_eq!(
+//!     swapped,
+//!     tuple_list!(String::from("4"), 2, String::from("7"), 13),
+//! );
+//! 
+//! // Since tuple lists now implement SwapStringAndInt,
+//! // they can even contain nested tuple lists:
+//! let nested = tuple_list!(tuple_list!(1, String::from("2")), 3);
+//! let nested_swapped = nested.swap();
+//! assert_eq!(
+//!     nested_swapped,
+//!     tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
+//! );
+//! ```
+//! 
+//! # Tuple lists and tuples interoperability
+//! 
+//! This crate defines `Tuple` and `TupleList` traits, which
+//! are automatically implemented and allow you to convert
+//! tuples into tuple lists and vice versa.
+//! 
+//! # Defining recursive traits for regular tuples
+//! 
+//! This crate also makes it possible to define traits on regular tuples,
+//! but there are certain tradeoffs and limitations.
+//! 
+//! It is highly recommended to use tuple lists instead because they
+//! are much nicer to work with.
+//! 
+//! For example please see documentation page for `NonEmptyTuple` trait.
 
 /// Trait providing conversion from tuple list into tuple.
 ///
@@ -155,6 +218,17 @@ pub trait TupleCons<Head>: Tuple {
 /// Trait allowing to recursively deconstruct tuples.
 /// 
 /// Generic trait implemented for all non-empty tuples (up to 12 elements).
+/// 
+/// Most interesting part is that this trait allows you to recursively
+/// define some simple traits for regular tuples.
+/// 
+/// Unofrtunately, it's not quite complete and is pretty unusable as of now.
+/// 
+/// In order ot be usable outside of this crate it needs support
+/// for trait specializations in rust.
+/// 
+/// In order to properly support implementing traits using for non-value `self`,
+/// it needs support for generic associate types.
 pub trait NonEmptyTuple: Tuple {
     /// First element of `Self` tuple.
     type Head;
