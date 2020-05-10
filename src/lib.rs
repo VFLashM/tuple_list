@@ -81,6 +81,36 @@
 //!     nested_swapped,
 //!     tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
 //! );
+//! 
+//! // Now, we can't implement `SwapStringAndInt` for regular tuples
+//! // because it would conflict with tuple list implementation,
+//! // but we can define helper function allowing us to use `swap`
+//! // on regular tuples seamlessly.
+//! use tuple_list::Tuple;
+//! use tuple_list::TupleList;
+//! 
+//! // Argument of this function is a regular tuple, not a tuple list.
+//! fn swap<T, TL, OtherTL>(tuple: T) -> OtherTL::Tuple where
+//!     T: Tuple<TupleList=TL>, // argument type
+//!     TL: TupleList + SwapStringAndInt<Other=OtherTL>, // tuple list corresponding to argument tuple
+//!     OtherTL: TupleList, // another tuple list, result of `SwapStringAndInt::swap` applied to original tuple list
+//! {
+//!     tuple.to_tuple_list().swap().to_tuple()
+//! }
+//! 
+//! // Now we can indirectly use `SwapStringAndInt` with regular tuples.
+//! let original_tuple = (4, String::from("2"), 7, String::from("13"));
+//! let swapped_tuple = swap(original_tuple);
+//! assert_eq!(
+//!     swapped_tuple,
+//!     (String::from("4"), 2, String::from("7"), 13),
+//! );
+//! 
+//! // Please note that it cannot handle nested tuples
+//! // because regular tuples do not implement `SwapStringAndInt`.
+//! let nested_tuple = ((1, String::from("2"), 3), 4);
+//! // Following won't compile:
+//! // let nested_tuple_swapped = swap(nested_tuple);
 //! ```
 //! 
 //! # Tuple lists and tuples interoperability

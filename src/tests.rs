@@ -31,19 +31,6 @@ fn swap_string_and_int_simple_tuple() {
         }
     }
 
-    impl<T, TL> SwapStringAndInt for T where
-        T: Tuple<TupleList=TL>,
-        TL: TupleList + SwapStringAndInt,
-        //Head: SwapStringAndInt,
-        //Tail: SwapStringAndInt<Other=TailOther>,
-        //TailOther: TupleCons<Head::Other>,
-    {
-        type Other = ();
-        fn swap(self) -> Self::Other {
-            //self.uncons().swap()
-        }
-    }
-
     // Create tuple list value.
     let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
 
@@ -62,6 +49,20 @@ fn swap_string_and_int_simple_tuple() {
     assert_eq!(
         nested_swapped,
         tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
+    );
+
+    fn swap<T, TL, OtherTL>(tuple: T) -> OtherTL::Tuple where
+        T: Tuple<TupleList=TL>,
+        TL: TupleList + SwapStringAndInt<Other=OtherTL>,
+        OtherTL: TupleList,
+    {
+        tuple.to_tuple_list().swap().to_tuple()
+    }
+    let original_tuple = (4, String::from("2"), 7, String::from("13"));
+    let swapped_tuple = swap(original_tuple);
+    assert_eq!(
+        swapped_tuple,
+        (String::from("4"), 2, String::from("7"), 13),
     );
 }
 
