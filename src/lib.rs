@@ -429,8 +429,8 @@ pub trait Tuple {
 // TODO: when rust gets generic associated types
 //       move this trait content into Tuple
 pub trait TupleAsRef<'a>: Tuple {
-    type TupleOfRefs: Tuple;
-    type TupleOfMutRefs: Tuple;
+    type TupleOfRefs: Tuple + 'a;
+    type TupleOfMutRefs: Tuple + 'a;
 
     /// Convertes reference to tuple into tuple of references.
     fn as_ref(&'a self) -> Self::TupleOfRefs;

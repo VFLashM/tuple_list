@@ -34,11 +34,11 @@ fn all_features() {
 
         fn into_other(self) -> Self::OtherType;
     }
-    trait NumberOrStringTupleListRef: TupleList {
-        fn format(self) -> String; // note that self is by value here
+    trait NumberOrStringRef {
+        fn format_ref(self) -> String; // note that self is by value here
     }
-    trait NumberOrStringTupleListMutRef: TupleList {
-        fn plus_one(self); // note that self is by value here
+    trait NumberOrStringMutRef {
+        fn plus_one_ref(self); // note that self is by value here
     }
 
     // initial condition
@@ -47,11 +47,11 @@ fn all_features() {
 
         fn into_other(self) -> Self::OtherType { Empty }
     }
-    impl NumberOrStringTupleListRef for Empty {
-        fn format(self) -> String { String::new() }
+    impl NumberOrStringRef for Empty {
+        fn format_ref(self) -> String { String::new() }
     }
-    impl NumberOrStringTupleListMutRef for Empty {
-        fn plus_one(self) {}
+    impl NumberOrStringMutRef for Empty {
+        fn plus_one_ref(self) {}
     }
 
     // recursion
@@ -67,45 +67,89 @@ fn all_features() {
             Pair(self.0.into_other(), self.1.into_other())
         }
     }
-    impl<Head, Tail> NumberOrStringTupleListRef for Pair<&Head, Tail> where
+
+    impl<Head, Tail> NumberOrStringRef for Pair<&Head, Tail> where
         Head: NumberOrString,
-        Tail: NumberOrStringTupleListRef,
+        Tail: NumberOrStringRef + TupleList,
         Self: TupleList,
     {
-        fn format(self) -> String {
-            format!("{} {}", self.0.format(), self.1.format())
-        }
-    }
-    impl<Head, Tail> NumberOrStringTupleListMutRef for Pair<&mut Head, Tail> where
-        Head: NumberOrString,
-        Tail: NumberOrStringTupleListMutRef,
-        Self: TupleList,
-    {
-        fn plus_one(self) {
-            self.0.plus_one();
-            self.1.plus_one();
+        fn format_ref(self) -> String {
+            format!("{} {}", self.0.format(), self.1.format_ref())
         }
     }
 
-    // implementation for tuples
-    impl<T, TL, OtherTL> NumberOrString for T where
-        T: Tuple<TupleList=TL>,
-        TL: NumberOrStringTupleListValue<OtherType=OtherTL> + NumberOrStringTupleListRef + NumberOrStringTupleListMutRef,
-        OtherTL: TupleList,
+    impl<Head, Tail> NumberOrStringMutRef for Pair<&mut Head, Tail> where
+        Head: NumberOrString,
+        Tail: NumberOrStringMutRef + TupleList,
+        Self: TupleList,
     {
-        type OtherType = OtherTL::Tuple;
+        fn plus_one_ref(self) {
+            self.0.plus_one();
+            self.1.plus_one_ref();
+        }
+    }
+
+    // impl for refs
+    impl<'a, T, RT, RTL> NumberOrStringRef for &'a T where
+        T: TupleAsRef<'a, TupleOfRefs=RT>,
+        RT: Tuple<TupleList=RTL> + 'a,
+        RTL: NumberOrStringRef + TupleList,
+    {
+        fn format_ref(self) -> String {
+            self.as_ref().to_tuple_list().format_ref()
+        }
+    }
+
+    impl<'a, T, RT, RTL> NumberOrStringMutRef for &'a mut T where
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
+        RT: Tuple<TupleList=RTL> + 'a,
+        RTL: NumberOrStringMutRef + TupleList,
+    {
+        fn plus_one_ref(self) {
+            self.as_mut().to_tuple_list().plus_one_ref()
+        }
+    }
+
+
+    // implementation for tuples
+    impl<T> NumberOrString for T where
+        T: Tuple,
+        T::TupleList: NumberOrStringTupleListValue,
+        for<'a> &'a T: NumberOrStringRef,
+        for<'a> &'a mut T: NumberOrStringMutRef,
+    {
+        type OtherType = <<<T as Tuple>::TupleList as NumberOrStringTupleListValue>::OtherType as TupleList>::Tuple;
 
         fn into_other(self) -> Self::OtherType {
             self.to_tuple_list().into_other().to_tuple()
         }
         fn format(&self) -> String {
-            self.as_ref().to_tuple_list().format()
+            self.format_ref()
         }
         fn plus_one(&mut self) {
-            self.as_ref_mut().to_tuple_list().plus_one()
+            self.plus_one_ref()
         }
     }
 
+    let src = (1, String::from("2"), 3, String::from("4"));
+    let dst = (String::from("1"), 2, String::from("3"), 4);
+    assert_eq!(
+        src.into_other(),
+        dst,
+    );
+
+    let src = (1, String::from("2"), 3, String::from("4"));
+    assert_eq!(
+        src.format(),
+        "1 2 3 4 ",
+    );
+
+    let mut src = (1, String::from("2"), 3, String::from("4"));
+    src.plus_one();
+    assert_eq!(
+        src,
+        (2, String::from("21"), 4, String::from("41")),
+    );
 }
 
 #[test]
@@ -303,7 +347,7 @@ fn plus_one_tuple() {
 
     impl<'a, T, RT> PlusOne<'a> for T where
         T: NonEmptyTuple + TupleAsRef<'a, TupleOfMutRefs=RT>,
-        RT: PlusOneTuple,
+        RT: PlusOneTuple + 'a,
     {
         fn plus_one(&'a mut self) {
             self.as_mut().plus_one()
@@ -361,7 +405,7 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     // original trait implementation for regular tuples
     impl<'a, T, RT, Head, Tail> PlusOne<'a> for T where
         T: TupleAsRef<'a, TupleOfMutRefs=RT>,       // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=Pair<Head, Tail>>,          // tuple of references which can be converted into tuple list
+        RT: Tuple<TupleList=Pair<Head, Tail>> + 'a,     // tuple of references which can be converted into tuple list
         Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
         Tail: TupleList,
     {
@@ -424,8 +468,8 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // but it's possible to add a helper function which
     // will accept tuple and call function of recursive trait
     fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=Pair<Head, Tail>>,    // tuple of references which can be converted into tuple list
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>,           // tuple argument which can be converted into tuple of references
+        RT: Tuple<TupleList=Pair<Head, Tail>> + 'a,     // tuple of references which can be converted into tuple list
         Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
         Tail: TupleList,
     {
