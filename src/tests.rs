@@ -1,7 +1,8 @@
 use super::*;
 
 #[test]
-fn swap_string_and_int_dual_traits_with_recursion() {
+fn swap_string_and_int_dual_traits_recursion() {
+    // real trait, implemented for tuples and primitive types
     trait SwapStringAndInt     {
         type Other;
         fn swap(self) -> Self::Other;
@@ -15,12 +16,14 @@ fn swap_string_and_int_dual_traits_with_recursion() {
         fn swap(self) -> i32 { self.parse().unwrap() }
     };
 
-    // only used for recursion on tuple lists
+    // helper trait, only used for recursion on tuple lists
     // goes to SwapStringAndInt for action conversion
+    // implemented for tuple lists
     trait SwapStringAndIntTupleList {
         type Other;
         fn swap(self) -> Self::Other;
     }
+    // initial condition for recursion
     impl SwapStringAndIntTupleList for () {
         type Other = ();
         fn swap(self) {}
@@ -33,10 +36,14 @@ fn swap_string_and_int_dual_traits_with_recursion() {
     {
         type Other = (Head::Other, TailTupleOther::TupleList);
         fn swap(self) -> Self::Other {
+            // note that actual work is done by `SwapStringAndInt` trait
+            // head is `SwapStringAndInt`, tail is converted to tuple
+            // which is also `SwapStringAndInt` and then converted back to tuple list
             (self.0.swap(), self.1.to_tuple().swap().to_tuple_list())
         }
     }
 
+    // implementation of `SwapStringAndInt` for tuples
     impl<T, TL, OtherTL> SwapStringAndInt for T where
         T: Tuple<TupleList=TL>,
         TL: TupleList + SwapStringAndIntTupleList<Other=OtherTL>,
@@ -45,15 +52,15 @@ fn swap_string_and_int_dual_traits_with_recursion() {
         type Other = OtherTL::Tuple;
         fn swap(self) -> Self::Other {
             // goes to SwapStringAndIntTupleList for recursion
+            // converts result back to tuple
             self.to_tuple_list().swap().to_tuple()
         }
     }
 
-    // Create tuple list value.
+    // Create tuple value.
     let original = (4, String::from("2"), 7, String::from("13"));
 
-    // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
-    // on each member and returnign tuple list of resulting values.
+    // Tuples implement `SwapStringAndInt`
     let swapped = original.swap();
     assert_eq!(
         swapped,
@@ -204,23 +211,34 @@ fn plus_one_tuple() {
 }
 
 #[test]
-fn plus_one_tuple_list() {
+fn plus_one_tuple_list_trait_with_lifetime() {
+    // trait needs free generic lifetime argument
+    // for implementation to be unambiguous
     trait PlusOne<'a> {
         fn plus_one(&'a mut self);
     }
 
+    // implemented for primitive types
     impl<'a> PlusOne<'a> for i32    { fn plus_one(&'a mut self) { *self += 1; } }
     impl<'a> PlusOne<'a> for bool   { fn plus_one(&'a mut self) { *self = !*self; } }
     impl<'a> PlusOne<'a> for String { fn plus_one(&'a mut self) { self.push('1'); } }
 
+    // separate trait for recursion
+    // implemented for tuple lists
+    //
+    // note that `self` is passed by value
+    // in this case `self` is a tuple list
+    // of references, which is consumed
     trait PlusOneTupleList {
         fn plus_one(self);
     }
 
+    // initial condition
     impl PlusOneTupleList for () {
         fn plus_one(self) {}
     }
 
+    // recursion
     impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
         Head: PlusOne<'a> + 'a,
         Tail: PlusOneTupleList + 'a,
@@ -231,16 +249,22 @@ fn plus_one_tuple_list() {
         }
     }
 
+    // original trait implementation for regular tuples
     impl<'a, T, RT, Head, Tail> PlusOne<'a> for T where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
-        RT: Tuple<TupleList=(Head, Tail)>,
-        (Head, Tail): TupleList + PlusOneTupleList,
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>,       // tuple argument which can be converted into tuple of references
+        RT: Tuple<TupleList=(Head, Tail)>,          // tuple of references which can be converted into tuple list
+        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
     {
         fn plus_one(&'a mut self) {
+            // 1. converts reference to tuple into tuple of references
+            // 2. converts tuple of references into tuple list of references
+            // 3. calls recursive trait on tuple list
             self.as_mut().to_tuple_list().plus_one();
         }
     }
 
+    // now original trait can be used on regular tuples
+    // nesting works
     let mut tuple = (2, false, String::from("abc"));
     tuple.plus_one();
     let (a, b, c) = tuple;
@@ -250,23 +274,31 @@ fn plus_one_tuple_list() {
 }
 
 #[test]
-fn plus_one_adapter() {
+fn plus_one_tuple_list_trait_without_lifetime() {
+    // define trait and implement it for primitive types
     trait PlusOne {
         fn plus_one(&mut self);
     }
-
     impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
     impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
     impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
 
+    // separate trait for recursion
+    // implemented for tuple lists
+    //
+    // note that `self` is passed by value
+    // in this case `self` is a tuple list
+    // of references, which is consumed
     trait PlusOneTupleList {
         fn plus_one(self);
     }
 
+    // initial condition
     impl PlusOneTupleList for () {
         fn plus_one(self) {}
     }
 
+    // recursion
     impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
         Head: PlusOne + 'a,
         Tail: PlusOneTupleList + 'a,
@@ -277,14 +309,23 @@ fn plus_one_adapter() {
         }
     }
 
+    // regular tuples do not implement any traits
+    // but it's possible to add a helper function which
+    // will accept tuple and call function of recursive trait
     fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
-        RT: Tuple<TupleList=(Head, Tail)>,
-        (Head, Tail): TupleList + PlusOneTupleList,
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
+        RT: Tuple<TupleList=(Head, Tail)>,    // tuple of references which can be converted into tuple list
+        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
     {
+        // 1. converts reference to tuple into tuple of references
+        // 2. converts tuple of references into tuple list of references
+        // 3. calls recursive trait on tuple list
         tuple.as_mut().to_tuple_list().plus_one();
     }
 
+    // helper function can be used to invoke trait function
+    // on regular tuples
+    // nesting does not work because tuples don't implement the trait
     let mut tuple = (2, false, String::from("abc"));
     plus_one(&mut tuple);
     let (a, b, c) = tuple;

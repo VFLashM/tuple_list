@@ -18,14 +18,115 @@
 //! 
 //! Tuple `(A, B, C, D)` can be unambiguously mapped into recursive tuple `(A, (B, (C, (D, ()))))`.
 //! 
+//! On each level it consists of a pair `(Head, Tail)`, where `Head` is tuple element and
+//! `Tail` is a remainder of the list. For last element `Tail` is an empty list.
+//! 
 //! Unlike regular flat tuples, such recursive tuples can be effectively reasoned about in rust.
 //! 
 //! This crate calls such structures "tuple lists" and provides a set of traits and macros
 //! allowing one to conveniently work with them.
 //! 
-//! # Example of a recursively defined trait for tuple lists
+//! # Example 1: `CustomDisplay` recursive trait
 //! 
-//! Let's implement a simple trait which converts i32 to String and vice versa.
+//! Let's create a simple `Display`-like trait implemented for all tuples
+//! whose elements implement it.
+//! 
+//! ```
+//! // Define trait and implement it for several standard types.
+//! trait CustomDisplay {
+//!     fn fmt(&self) -> String;
+//! }
+//! impl CustomDisplay for i32  { fn fmt(&self) -> String { self.to_string() } }
+//! impl CustomDisplay for bool { fn fmt(&self) -> String { self.to_string() } }
+//! impl CustomDisplay for &str { fn fmt(&self) -> String { self.to_string() } }
+//! 
+//! // Now we have to implement trait for empty tuple,
+//! // thus defining initial condition.
+//! impl CustomDisplay for () {
+//!     fn fmt(&self) -> String { String::new() }
+//! }
+//! 
+//! // Now we can implement trait for a non-empty tuple list, 
+//! // this defining recursion and supporting tuple lists of arbitrary length.
+//! impl<Head, Tail> CustomDisplay for (Head, Tail) where
+//!     Head: CustomDisplay,
+//!     Tail: CustomDisplay,
+//! {
+//!     fn fmt(&self) -> String {
+//!         let (head, tail) = self;
+//!         return format!("{} {}", head.fmt(), tail.fmt());
+//!     }
+//! }
+//! 
+//! // `tuple_list!` macro creates tuple lists from list of arguments.
+//! use tuple_list::tuple_list;
+//!
+//! // Ensure `fmt` is called for each element.
+//! let tuple_list = tuple_list!(2, false, "abc");
+//! assert_eq!(
+//!     tuple_list.fmt(),
+//!     "2 false abc ",
+//! );
+//! 
+//! // Since tuple lists implement `CustomDisplay`, they can
+//! // be elements in other tuple lists implementing `CustomDisplay`.
+//! let nested_tuple_list = tuple_list!(2, false, "abc", tuple_list!(3, true, "def"));
+//! assert_eq!(
+//!     nested_tuple_list.fmt(),
+//!     "2 false abc 3 true def  ",
+//! );
+//! ```
+//! 
+//! # Example 2: `PlusOne` recursive trait
+//! 
+//! Let's create a trait which adds one to each element of a tuple,
+//! behaving differently depending on element type.
+//! 
+//! ```
+//! // Define trait and implement it for several primitive types.
+//! trait PlusOne {
+//!     fn plus_one(&mut self);
+//! }
+//! impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
+//! impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
+//! impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
+//! 
+//! // Now we have to implement trait for empty tuple,
+//! // thus defining initial condition.
+//! impl PlusOne for () {
+//!     fn plus_one(&mut self) {}
+//! }
+//! 
+//! // Now we can implement trait for a non-empty tuple list, 
+//! // this defining recursion and supporting tuple lists of arbitrary length.
+//! impl<Head, Tail> PlusOne for (Head, Tail) where
+//!     Head: PlusOne,
+//!     Tail: PlusOne,
+//! {
+//!     fn plus_one(&mut self) {
+//!         self.0.plus_one();
+//!         self.1.plus_one();
+//!     }
+//! }
+//! 
+//! # use tuple_list::tuple_list;
+//! // Now we can use our trait on tuple lists.
+//! let mut tuple_list = tuple_list!(2, false, String::from("abc"));
+//! tuple_list.plus_one();
+//! 
+//! // tuple_list! macro also allows us to unpack tuple lists
+//! let tuple_list!(a, b, c) = tuple_list;
+//! assert_eq!(a, 3);
+//! assert_eq!(b, true);
+//! assert_eq!(&c, "abc1");
+//! ```
+//! 
+//! # Example 3: `SwapStringAndInt` recursive trait
+//! 
+//! Let's implement a trait which converts `i32` to `String` and vice versa.
+//! 
+//! This example is way more complex because it maps tuple list into
+//! another tuple list.
 //! 
 //! ```
 //! // Let's define and implement trait for i32 and String
@@ -59,15 +160,14 @@
 //!     }
 //! }
 //! 
-//! // `tuple_list!` macro creates tuple lists from list of arguments.
-//! use tuple_list::tuple_list;
-//! 
-//! // Create tuple list value.
+//! # use tuple_list::tuple_list;
 //! let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
 //! 
 //! // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
 //! // on each member and returnign tuple list of resulting values.
 //! let swapped = original.swap();
+//! 
+//! // Not that types of elements have changed.
 //! assert_eq!(
 //!     swapped,
 //!     tuple_list!(String::from("4"), 2, String::from("7"), 13),
@@ -105,17 +205,6 @@
 //!     swapped_tuple,
 //!     (String::from("4"), 2, String::from("7"), 13),
 //! );
-//! 
-//! // Please note that it cannot handle nested tuples
-//! // because regular tuples do not implement `SwapStringAndInt`.
-//! let nested_tuple = ((1, String::from("2"), 3), 4);
-//! // Following won't compile:
-//! // let nested_tuple_swapped = swap(nested_tuple);
-//! 
-//! // It is technically possible to use two separate traits
-//! // in order to resolve ambiguity between tuple lists and 
-//! // tuples, but resulting code is so complex that it's probably
-//! // not worth it.
 //! ```
 //! 
 //! # Tuple lists and tuples interoperability
@@ -124,15 +213,109 @@
 //! are automatically implemented and allow you to convert
 //! tuples into tuple lists and vice versa.
 //! 
-//! # Defining recursive traits for regular tuples
+//! Best way to handle interoperability is to store your data
+//! as tuple lists and convert to tuples if necessary.
 //! 
-//! This crate also makes it possible to define traits on regular tuples,
-//! but there are certain tradeoffs and limitations.
+//! Anoter reasonable alternative is to use helper function like
+//! the one described in `SwapStringAndInt` example.
 //! 
-//! It is highly recommended to use tuple lists instead because they
-//! are much nicer to work with.
+//! Please note that tuple/tuple list conversions are
+//! destructive and consume the original, which may pose a problem
+//! in some cases.
 //! 
-//! For example please see documentation page for `NonEmptyTuple` trait.
+//! # Implementing recursive traits for regular tuples
+//! 
+//! Previous examples described how to implement recursive traits
+//! for tuple lists. If you really, really need to implement 
+//! recursive traits on regular tuples, it's possible,
+//! but not recommended. Such implementations are extremely
+//! complex and have serious limitations.
+//! 
+//! There are two major problems:
+//! 
+//! 1. Trait implementation for regular tuples may conflict with
+//!    implementation for tuple lists.
+//! 2. Reference to tuple cannot be transformed
+//!    into reference to tuple list.
+//! 
+//! Both problems are solveable, but working around them makes
+//! code extremely complex.
+//! 
+//! Depending on your use case, you may have to do this:
+//! 1. In order to avoid implementations conflict,
+//!    add separate trait mirroring the main one,
+//!    which will be used for typed list only.
+//! 2. Handling `self` and `&self` is very different in
+//!    recursive traits for regular tuples. As a result
+//!    you may have to split your trait into parts that
+//!    accept `self` in the same way.
+//! 3. You may have to add generic lifetime to your original
+//!    trait. It's not mandatory, but without it nesting
+//!    won't work properly.
+//! 
+//! All use cases can be broadly grouped into two types depending
+//! on how `self` is passed into function.
+//! 
+//! ## Implementing traits with functions which accept `self` by value
+//!    
+//!    The major problem in this case is the fact
+//!    that trait implementation for tuple list
+//!    will conflict with trait implementation for
+//!    regular tuple.
+//!
+//!    General solution is to create separate trait
+//!    mirroring the main one, which will only used for type lists.
+//!
+//!    Naive solution will break nesting, but there is
+//!    a way to solve that with pretty complex birecursion.
+//!
+//!    For details please see `tuple_lists::tests::swap_string_and_int_dual_traits_recursion`.
+//! 
+//! ## Implementing traits with functions which accept `self` by reference or mutable reference
+//!
+//!    General idea is to convert refernce to tuple into
+//!    tuple of references, then convert tuple of references into
+//!    tuple list, and then use recursive traits as usual.
+//!
+//!    The main problem is that recursive trait implementation 
+//!    must have generic lifetime argument in order to
+//!    track lifetimes of references in tuple list.
+//!
+//!    This makes it impossible to unambiguously implement
+//!    recursive trait for regular tuples, unless original trait
+//!    has free generic lifetime argument.
+//! 
+//!    For an example of this approach see `tuple_lists::tests::plus_one_tuple_list_trait_with_lifetime`.
+//!
+//!    If it is impossible or not practical to add generic lifetime
+//!    argument to the original trait, then it's possible to only
+//!    implement recursive trait for tuple lists, as a result
+//!    breaking nesting.
+//! 
+//!    For an example of this approach see `tuple_lists::tests::plus_one_tuple_list_trait_without_lifetime`.
+//! 
+//! # Rust unstable fetaures and future
+//! 
+//! This crate works at the edge of what's possible with current type system of rust.
+//! 
+//! Following planned or unstable features will significantly affect this crate when implemented:
+//! 
+//! 1. Associated generic types will remove extra lifetime argument requirement
+//!    in recursive traits implemented for regular tuples.
+//! 2. Trait specialization will allow crate users to use
+//!    `TupleCons` and `NonEmptyTuple` traits to define
+//!    traits directly on regular tuples,
+//!    without recursion through tuple lists.
+//! 3. Obviously, as soon as rust implements variadic generics, 
+//!    this crate will become obsolete and deprecated.
+
+/*
+tuple list recursion
+tuple interoperation
+tuple value recursion
+tuple reference recursion: trait with lifetime
+tuple reference recursion: trait without lifetime
+*/
 
 /// Trait providing conversion from tuple list into tuple.
 ///
