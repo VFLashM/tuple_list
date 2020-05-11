@@ -1,6 +1,114 @@
 use super::*;
 
 #[test]
+fn all_features() {
+
+    trait NumberOrString {
+        type OtherType;
+
+        fn into_other(self) -> Self::OtherType;
+        fn format(&self) -> String;
+        fn plus_one(&mut self);
+    }
+
+    impl NumberOrString for i32 {
+        type OtherType = String;
+
+        fn into_other(self) -> Self::OtherType { self.to_string() }
+        fn format(&self) -> String { self.to_string() }
+        fn plus_one(&mut self) { *self += 1; }
+    }
+
+    impl NumberOrString for String {
+        type OtherType = i32;
+
+        fn into_other(self) -> Self::OtherType { self.parse().unwrap() }
+        fn format(&self) -> String { self.clone() }
+        fn plus_one(&mut self) { self.push('1'); }
+    }
+
+    // split original trait into separate traits
+    // for each kind of `self`
+    trait NumberOrStringTupleListValue: TupleList {
+        type OtherType: TupleList;
+
+        fn into_other(self) -> Self::OtherType;
+    }
+    trait NumberOrStringTupleListRef: TupleList {
+        fn format(self) -> String; // note that self is by value here
+    }
+    trait NumberOrStringTupleListMutRef: TupleList {
+        fn plus_one(self); // note that self is by value here
+    }
+
+    // initial condition
+    impl NumberOrStringTupleListValue for Empty {
+        type OtherType = Empty;
+
+        fn into_other(self) -> Self::OtherType { Empty }
+    }
+    impl NumberOrStringTupleListRef for Empty {
+        fn format(self) -> String { String::new() }
+    }
+    impl NumberOrStringTupleListMutRef for Empty {
+        fn plus_one(self) {}
+    }
+
+    // recursion
+    impl<Head, Tail> NumberOrStringTupleListValue for Pair<Head, Tail> where
+        Head: NumberOrString,
+        Tail: NumberOrStringTupleListValue,
+        Self: TupleList,
+        Pair<Head::OtherType, Tail::OtherType>: TupleList,
+    {
+        type OtherType = Pair<Head::OtherType, Tail::OtherType>;
+
+        fn into_other(self) -> Self::OtherType {
+            Pair(self.0.into_other(), self.1.into_other())
+        }
+    }
+    impl<Head, Tail> NumberOrStringTupleListRef for Pair<&Head, Tail> where
+        Head: NumberOrString,
+        Tail: NumberOrStringTupleListRef,
+        Self: TupleList,
+    {
+        fn format(self) -> String {
+            format!("{} {}", self.0.format(), self.1.format())
+        }
+    }
+    impl<Head, Tail> NumberOrStringTupleListMutRef for Pair<&mut Head, Tail> where
+        Head: NumberOrString,
+        Tail: NumberOrStringTupleListMutRef,
+        Self: TupleList,
+    {
+        fn plus_one(self) {
+            self.0.plus_one();
+            self.1.plus_one();
+        }
+    }
+
+    // implementation for tuples
+    impl<T, TL, OtherTL> NumberOrString for T where
+        T: Tuple<TupleList=TL>,
+        TL: NumberOrStringTupleListValue<OtherType=OtherTL> + NumberOrStringTupleListRef + NumberOrStringTupleListMutRef,
+        OtherTL: TupleList,
+    {
+        type OtherType = OtherTL::Tuple;
+
+        fn into_other(self) -> Self::OtherType {
+            self.to_tuple_list().into_other().to_tuple()
+        }
+        fn format(&self) -> String {
+            self.as_ref().to_tuple_list().format()
+        }
+        fn plus_one(&mut self) {
+            self.as_ref_mut().to_tuple_list().plus_one()
+        }
+    }
+
+}
+
+#[test]
 fn swap_string_and_int_dual_traits_recursion() {
     // real trait, implemented for tuples and primitive types
     trait SwapStringAndInt     {
@@ -24,22 +132,22 @@ fn swap_string_and_int_dual_traits_recursion() {
         fn swap(self) -> Self::Other;
     }
     // initial condition for recursion
-    impl SwapStringAndIntTupleList for () {
-        type Other = ();
-        fn swap(self) {}
+    impl SwapStringAndIntTupleList for Empty {
+        type Other = Empty;
+        fn swap(self) -> Empty { Empty }
     }
-    impl<Head, Tail, TailTuple, TailTupleOther> SwapStringAndIntTupleList for (Head, Tail) where
+    impl<Head, Tail, TailTuple, TailTupleOther> SwapStringAndIntTupleList for Pair<Head, Tail> where
         Head: SwapStringAndInt,
         Tail: TupleList<Tuple=TailTuple>,
         TailTuple: Tuple + SwapStringAndInt<Other=TailTupleOther>,
         TailTupleOther: Tuple,
     {
-        type Other = (Head::Other, TailTupleOther::TupleList);
+        type Other = Pair<Head::Other, TailTupleOther::TupleList>;
         fn swap(self) -> Self::Other {
             // note that actual work is done by `SwapStringAndInt` trait
             // head is `SwapStringAndInt`, tail is converted to tuple
             // which is also `SwapStringAndInt` and then converted back to tuple list
-            (self.0.swap(), self.1.to_tuple().swap().to_tuple_list())
+            Pair(self.0.swap(), self.1.to_tuple().swap().to_tuple_list())
         }
     }
 
@@ -229,19 +337,20 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     // note that `self` is passed by value
     // in this case `self` is a tuple list
     // of references, which is consumed
-    trait PlusOneTupleList {
+    trait PlusOneTupleList: TupleList {
         fn plus_one(self);
     }
 
     // initial condition
-    impl PlusOneTupleList for () {
+    impl PlusOneTupleList for Empty {
         fn plus_one(self) {}
     }
 
     // recursion
-    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
+    impl<'a, Head, Tail> PlusOneTupleList for Pair<&'a mut Head, Tail> where 
         Head: PlusOne<'a> + 'a,
         Tail: PlusOneTupleList + 'a,
+        Self: TupleList,
     {
         fn plus_one(self) {
             self.0.plus_one();
@@ -252,8 +361,9 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     // original trait implementation for regular tuples
     impl<'a, T, RT, Head, Tail> PlusOne<'a> for T where
         T: TupleAsRef<'a, TupleOfMutRefs=RT>,       // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=(Head, Tail)>,          // tuple of references which can be converted into tuple list
-        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
+        RT: Tuple<TupleList=Pair<Head, Tail>>,          // tuple of references which can be converted into tuple list
+        Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
+        Tail: TupleList,
     {
         fn plus_one(&'a mut self) {
             // 1. converts reference to tuple into tuple of references
@@ -289,19 +399,20 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // note that `self` is passed by value
     // in this case `self` is a tuple list
     // of references, which is consumed
-    trait PlusOneTupleList {
+    trait PlusOneTupleList: TupleList {
         fn plus_one(self);
     }
 
     // initial condition
-    impl PlusOneTupleList for () {
+    impl PlusOneTupleList for Empty {
         fn plus_one(self) {}
     }
 
     // recursion
-    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
+    impl<'a, Head, Tail> PlusOneTupleList for Pair<&'a mut Head, Tail> where 
         Head: PlusOne + 'a,
         Tail: PlusOneTupleList + 'a,
+        Self: TupleList,
     {
         fn plus_one(self) {
             self.0.plus_one();
@@ -314,8 +425,9 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // will accept tuple and call function of recursive trait
     fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
         T: TupleAsRef<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=(Head, Tail)>,    // tuple of references which can be converted into tuple list
-        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
+        RT: Tuple<TupleList=Pair<Head, Tail>>,    // tuple of references which can be converted into tuple list
+        Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
+        Tail: TupleList,
     {
         // 1. converts reference to tuple into tuple of references
         // 2. converts tuple of references into tuple list of references
@@ -336,32 +448,32 @@ fn plus_one_tuple_list_trait_without_lifetime() {
 
 #[test]
 fn empty() {
-    assert_eq!(().to_tuple_list(), ());
-    assert_eq!((),                 ().to_tuple());
+    assert_eq!(().to_tuple_list(), Empty);
+    assert_eq!((),                 Empty.to_tuple());
 }
 
 #[test]
 fn single() {
-    assert_eq!((false,).to_tuple_list(), (false, ()));
-    assert_eq!((false,),                 (false, ()).to_tuple());
+    assert_eq!((false,).to_tuple_list(), Pair(false, Empty));
+    assert_eq!((false,),                 Pair(false, Empty).to_tuple());
 }
 
 #[test]
 fn double() {
-    assert_eq!((false, 1).to_tuple_list(), (false, (1, ())));
-    assert_eq!((false, 1),                 (false, (1, ())).to_tuple());
+    assert_eq!((false, 1).to_tuple_list(), Pair(false, Pair(1, Empty)));
+    assert_eq!((false, 1),                 Pair(false, Pair(1, Empty)).to_tuple());
 }
 
 #[test]
 fn triple() {
-    assert_eq!((false, 1, String::from("abc")).to_tuple_list(), (false, (1, (String::from("abc"), ()))));
-    assert_eq!((false, 1, String::from("abc")),                 (false, (1, (String::from("abc"), ()))).to_tuple());
+    assert_eq!((false, 1, String::from("abc")).to_tuple_list(), Pair(false, Pair(1, Pair(String::from("abc"), Empty))));
+    assert_eq!((false, 1, String::from("abc")),                 Pair(false, Pair(1, Pair(String::from("abc"), Empty))).to_tuple());
 }
 
 #[test]
 fn complex_types() {
     use std::collections::HashMap;
-    let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
+    let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = Pair(1, Pair("abc", Pair(HashMap::new(), Empty)));
     let tuple_list!(a, b, c) = t;
     assert_eq!(a, 1);
     assert_eq!(b, "abc");
@@ -420,7 +532,7 @@ fn traits() {
     consume(copy);
 
     // test debug
-    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "(1, (false, (\"abc\", ())))");
+    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "Pair(1, Pair(false, Pair(\"abc\", Empty)))");
 
     // test default
     let default: tuple_list_type!(i32, bool, String) = Default::default();
