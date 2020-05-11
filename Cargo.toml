@@ -1,6 +1,6 @@
 [package]
 name = "tuple_list"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Valerii Lashmanov <vflashm@gmail.com>"]
 edition = "2018"
 description = "Crate for variadic tuple metaprogramming"
