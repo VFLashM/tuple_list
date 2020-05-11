@@ -1,7 +1,10 @@
 # Crate `tuple_list`
 
-Crate for variadic tuple metaprogramming.
+Rust crate for variadic tuple metaprogramming.
 
-Please see crate documentation for details and examples.
+Provides a way to recursively define traits for
+tuples of arbitrary size.
+
+Please see [crate documentation](https://docs.rs/tuple_list) for details and examples.
 
 Licensed under MIT license.
