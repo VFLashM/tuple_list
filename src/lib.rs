@@ -46,11 +46,19 @@
 //!     fn fmt(&self) -> String { String::new() }
 //! }
 //! 
+//! impl<Head> CustomDisplay for (Head, ()) where
+//!     Head: CustomDisplay,
+//! {
+//!     fn fmt(&self) -> String {
+//!         return self.0.fmt()
+//!     }
+//! }
+//! 
 //! // Now we can implement trait for a non-empty tuple list, 
 //! // this defining recursion and supporting tuple lists of arbitrary length.
-//! impl<Head, Tail> CustomDisplay for (Head, Tail) where
+//! impl<Head, Next, Tail> CustomDisplay for (Head, (Next, Tail)) where
 //!     Head: CustomDisplay,
-//!     Tail: CustomDisplay,
+//!     (Next, Tail): CustomDisplay,
 //! {
 //!     fn fmt(&self) -> String {
 //!         let (head, tail) = self;
@@ -65,7 +73,7 @@
 //! let tuple_list = tuple_list!(2, false, "abc");
 //! assert_eq!(
 //!     tuple_list.fmt(),
-//!     "2 false abc ",
+//!     "2 false abc",
 //! );
 //! 
 //! // Since tuple lists implement `CustomDisplay`, they can
@@ -73,7 +81,7 @@
 //! let nested_tuple_list = tuple_list!(2, false, "abc", tuple_list!(3, true, "def"));
 //! assert_eq!(
 //!     nested_tuple_list.fmt(),
-//!     "2 false abc 3 true def  ",
+//!     "2 false abc 3 true def",
 //! );
 //! ```
 //! 
