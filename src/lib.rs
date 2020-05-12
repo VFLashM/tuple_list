@@ -23,6 +23,10 @@
 //! 
 //! Unlike regular flat tuples, such recursive tuples can be effectively reasoned about in rust.
 //! 
+//! Even better, we can define helper types in order to distinguish these data structures from
+//! regular tuples. This crate defines `Empty` and `Pair` helper structs,
+//! so tuple `(A, B, C, D)` is mapped into structure `Pair(A, Pair(B, Pair(C, Pair(D, Empty))))`.
+//!
 //! This crate calls such structures "tuple lists" and provides a set of traits and macros
 //! allowing one to conveniently work with them.
 //! 
@@ -218,7 +222,7 @@
 //!     TL: TupleList + SwapStringAndInt<Other=OtherTL>, // tuple list corresponding to argument tuple
 //!     OtherTL: TupleList, // another tuple list, result of `SwapStringAndInt::swap` applied to original tuple list
 //! {
-//!     tuple.to_tuple_list().swap().to_tuple()
+//!     tuple.into_tuple_list().swap().into_tuple()
 //! }
 //! 
 //! // Now we can indirectly use `SwapStringAndInt` with regular tuples.
@@ -343,6 +347,7 @@
     Default,
     Hash,
 )]
+/// Structure which represents empty tuple list.
 pub struct Empty;
 
 #[derive(
@@ -356,7 +361,13 @@ pub struct Empty;
     Default,
     Hash,
 )]
-pub struct Pair<Head, Tail>(pub Head, pub Tail) where Tail: TupleList;
+/// Structure which represents non-empty tuple list.
+pub struct Pair<Head, Tail: TupleList>(
+    /// first element of a tuple list
+    pub Head,
+    /// Tuple list containing the remainder of the elements.
+    pub Tail,
+);
 
 /// Trait providing conversion from tuple list into tuple.
 ///
@@ -371,7 +382,7 @@ pub struct Pair<Head, Tail>(pub Head, pub Tail) where Tail: TupleList;
 /// let tuple_list = tuple_list!(1, false, String::from("abc"));
 /// 
 /// assert_eq!(
-///     tuple_list.to_tuple(),
+///     tuple_list.into_tuple(),
 ///     (1, false, String::from("abc")),
 /// );
 /// ```
@@ -380,7 +391,7 @@ pub trait TupleList {
     type Tuple: Tuple;
 
     /// Converts TupleList to tuple.
-    fn to_tuple(self) -> Self::Tuple;
+    fn into_tuple(self) -> Self::Tuple;
 }
 
 /// Trait providing conversion from tuple into tuple list.
@@ -397,7 +408,7 @@ pub trait TupleList {
 /// let tuple = (1, false, String::from("abc"));
 /// 
 /// assert_eq!(
-///     tuple.to_tuple_list(),
+///     tuple.into_tuple_list(),
 ///     Pair(1, Pair(false, Pair(String::from("abc"), Empty))),
 /// );
 /// ```
@@ -406,7 +417,7 @@ pub trait Tuple {
     type TupleList: TupleList;
 
     /// Converts tuple into tuple list.
-    fn to_tuple_list(self) -> Self::TupleList;
+    fn into_tuple_list(self) -> Self::TupleList;
 }
 
 /// Trait providing conversion from references to tuples into tuples of references.
@@ -415,7 +426,7 @@ pub trait Tuple {
 /// 
 /// # Example
 /// ```
-/// use tuple_list::TupleAsRef;
+/// use tuple_list::AsTupleOfRefs;
 /// 
 /// fn by_val(tuple: (i32, i32)) {}
 /// fn by_ref(tuple: (&i32, &i32)) {}
@@ -423,20 +434,20 @@ pub trait Tuple {
 /// 
 /// let mut tuple = (1, 2);
 /// by_val(tuple);
-/// by_ref(tuple.as_ref());
-/// by_mut(tuple.as_mut());
+/// by_ref(tuple.as_tuple_of_refs());
+/// by_mut(tuple.as_tuple_of_mut_refs());
 /// ```
 // TODO: when rust gets generic associated types
 //       move this trait content into Tuple
-pub trait TupleAsRef<'a>: Tuple {
+pub trait AsTupleOfRefs<'a>: Tuple {
     type TupleOfRefs: Tuple + 'a;
     type TupleOfMutRefs: Tuple + 'a;
 
     /// Convertes reference to tuple into tuple of references.
-    fn as_ref(&'a self) -> Self::TupleOfRefs;
+    fn as_tuple_of_refs(&'a self) -> Self::TupleOfRefs;
 
     /// Convertes mutable reference to tuple into tuple of mutable references.
-    fn as_mut(&'a mut self) -> Self::TupleOfMutRefs;
+    fn as_tuple_of_mut_refs(&'a mut self) -> Self::TupleOfMutRefs;
 }
 
 /// Trait providing tuple construction function, allows to prepend a value to a tuple.
@@ -446,7 +457,7 @@ pub trait TupleAsRef<'a>: Tuple {
 //       move this trait content into Tuple
 pub trait TupleCons<Head>: Tuple {
     /// Tuple with `Head` prepended to `Self`
-    type ResultingTuple: Tuple;
+    type ConstructedTuple: Tuple;
 
     /// Constructs a tuple from `head` value and `tail` tuple by prepending `head` to `tail`.
     /// 
@@ -473,7 +484,7 @@ pub trait TupleCons<Head>: Tuple {
     ///     (4, false, "foo"),
     /// );
     /// ```
-    fn cons(head: Head, tail: Self) -> Self::ResultingTuple;
+    fn cons(head: Head, tail: Self) -> Self::ConstructedTuple;
 }
 
 /// Trait allowing to recursively deconstruct tuples.
@@ -624,47 +635,47 @@ macro_rules! list_tail {
     ($i:ident, $($e:ident),+) => ( ($($e),*,) );
 }
 
-// defines Tuple, TupleList, TupleCons, NonEmptyTuple and TupleAsRef
+// defines Tuple, TupleList, TupleCons, NonEmptyTuple and AsTupleOfRefs
 macro_rules! define_tuple_list_traits {
     () => (
         impl TupleList for Empty {
             type Tuple = ();
-            fn to_tuple(self) {}
+            fn into_tuple(self) {}
         }
         impl Tuple for () {
             type TupleList = Empty;
-            fn to_tuple_list(self) -> Empty { Empty }
+            fn into_tuple_list(self) -> Empty { Empty }
         }
-        impl<'a> TupleAsRef<'a> for () {
+        impl<'a> AsTupleOfRefs<'a> for () {
             type TupleOfRefs = ();
             type TupleOfMutRefs = ();
-            fn as_ref(&'a self) {}
-            fn as_mut(&'a mut self) {}
+            fn as_tuple_of_refs(&'a self) {}
+            fn as_tuple_of_mut_refs(&'a mut self) {}
         }
     );
     ($($x:ident),*) => (
         impl<$($x),*> TupleList for tuple_list_type!($($x),*) {
             type Tuple = ($($x),*,);
-            fn to_tuple(self) -> Self::Tuple {
+            fn into_tuple(self) -> Self::Tuple {
                 let tuple_list!($($x),*) = self;
                 return ($($x),*,)
             }
         }
         impl<$($x),*> Tuple for ($($x),*,) {
             type TupleList = tuple_list_type!($($x),*);
-            fn to_tuple_list(self) -> Self::TupleList {
+            fn into_tuple_list(self) -> Self::TupleList {
                 let ($($x),*,) = self;
                 return tuple_list!($($x),*);
             }
         }
-        impl<'a, $($x: 'a),*> TupleAsRef<'a> for ($($x),*,) {
+        impl<'a, $($x: 'a),*> AsTupleOfRefs<'a> for ($($x),*,) {
             type TupleOfRefs = ($(&'a $x),*,);
             type TupleOfMutRefs = ($(&'a mut $x),*,);
-            fn as_ref(&'a self) -> Self::TupleOfRefs {
+            fn as_tuple_of_refs(&'a self) -> Self::TupleOfRefs {
                 let ($($x),*,) = self;
                 return ($($x),*,);
             }
-            fn as_mut(&'a mut self) -> Self::TupleOfMutRefs {
+            fn as_tuple_of_mut_refs(&'a mut self) -> Self::TupleOfMutRefs {
                 let ($($x),*,) = self;
                 return ($($x),*,);
             }
@@ -680,8 +691,8 @@ macro_rules! define_tuple_list_traits {
             fn tail(self) -> Self::Tail { self.uncons().1 }
         }
         impl<$($x),*> TupleCons<list_head!($($x),*)> for list_tail!($($x),*) {
-            type ResultingTuple = ($($x),*,);
-            fn cons(head: list_head!($($x),*), tail: Self) -> Self::ResultingTuple {
+            type ConstructedTuple = ($($x),*,);
+            fn cons(head: list_head!($($x),*), tail: Self) -> Self::ConstructedTuple {
                 let list_head!($($x),*) = head;
                 let list_tail!($($x),*) = tail;
                 return ($($x),*,);

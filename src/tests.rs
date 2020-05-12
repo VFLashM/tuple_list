@@ -91,22 +91,22 @@ fn all_features() {
 
     // impl for refs
     impl<'a, T, RT, RTL> NumberOrStringRef for &'a T where
-        T: TupleAsRef<'a, TupleOfRefs=RT>,
+        T: AsTupleOfRefs<'a, TupleOfRefs=RT>,
         RT: Tuple<TupleList=RTL> + 'a,
         RTL: NumberOrStringRef + TupleList,
     {
         fn format_ref(self) -> String {
-            self.as_ref().to_tuple_list().format_ref()
+            self.as_tuple_of_refs().into_tuple_list().format_ref()
         }
     }
 
     impl<'a, T, RT, RTL> NumberOrStringMutRef for &'a mut T where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>,
+        T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,
         RT: Tuple<TupleList=RTL> + 'a,
         RTL: NumberOrStringMutRef + TupleList,
     {
         fn plus_one_ref(self) {
-            self.as_mut().to_tuple_list().plus_one_ref()
+            self.as_tuple_of_mut_refs().into_tuple_list().plus_one_ref()
         }
     }
 
@@ -121,7 +121,7 @@ fn all_features() {
         type OtherType = <<<T as Tuple>::TupleList as NumberOrStringTupleListValue>::OtherType as TupleList>::Tuple;
 
         fn into_other(self) -> Self::OtherType {
-            self.to_tuple_list().into_other().to_tuple()
+            self.into_tuple_list().into_other().into_tuple()
         }
         fn format(&self) -> String {
             self.format_ref()
@@ -274,7 +274,7 @@ fn swap_string_and_int_dual_traits_recursion() {
         fn swap(self) -> Self::Other {
             // goes to SwapStringAndIntTupleList for recursion
             // converts result back to tuple
-            self.to_tuple_list().swap().to_tuple()
+            self.into_tuple_list().swap().into_tuple()
         }
     }
 
@@ -323,7 +323,7 @@ fn swap_string_and_int_tuple() {
         Tail: Tuple + SwapStringAndInt<Other=TailOther>,
         TailOther: TupleCons<Head::Other>,
     {
-        type Other = TailOther::ResultingTuple; // resulting from TupleCons
+        type Other = TailOther::ConstructedTuple; // resulting from TupleCons
         fn swap(self) -> Self::Other {
             let (head, tail) = self.uncons();
             return TupleCons::cons(head.swap(), tail.swap());
@@ -415,11 +415,11 @@ fn plus_one_tuple() {
     }
 
     impl<'a, T, RT> PlusOne<'a> for T where
-        T: NonEmptyTuple + TupleAsRef<'a, TupleOfMutRefs=RT>,
+        T: NonEmptyTuple + AsTupleOfRefs<'a, TupleOfMutRefs=RT>,
         RT: PlusOneTuple + 'a,
     {
         fn plus_one(&'a mut self) {
-            self.as_mut().plus_one()
+            self.as_tuple_of_mut_refs().plus_one()
         }
     }
 
@@ -473,7 +473,7 @@ fn plus_one_tuple_list_trait_with_lifetime() {
 
     // original trait implementation for regular tuples
     impl<'a, T, RT, RTL> PlusOne<'a> for T where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
+        T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
         RT: Tuple<TupleList=RTL> + 'a,        // tuple of references which can be converted into tuple list
         RTL: TupleList + PlusOneTupleList,    // tuple list which implements recursive trait
     {
@@ -481,7 +481,7 @@ fn plus_one_tuple_list_trait_with_lifetime() {
             // 1. converts reference to tuple into tuple of references
             // 2. converts tuple of references into tuple list of references
             // 3. calls recursive trait on tuple list
-            self.as_mut().to_tuple_list().plus_one();
+            self.as_tuple_of_mut_refs().into_tuple_list().plus_one();
         }
     }
 
@@ -536,7 +536,7 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // but it's possible to add a helper function which
     // will accept tuple and call function of recursive trait
     fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>,           // tuple argument which can be converted into tuple of references
+        T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,           // tuple argument which can be converted into tuple of references
         RT: Tuple<TupleList=Pair<Head, Tail>> + 'a,     // tuple of references which can be converted into tuple list
         Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
         Tail: TupleList,
@@ -544,7 +544,7 @@ fn plus_one_tuple_list_trait_without_lifetime() {
         // 1. converts reference to tuple into tuple of references
         // 2. converts tuple of references into tuple list of references
         // 3. calls recursive trait on tuple list
-        tuple.as_mut().to_tuple_list().plus_one();
+        tuple.as_tuple_of_mut_refs().into_tuple_list().plus_one();
     }
 
     // helper function can be used to invoke trait function
@@ -560,26 +560,26 @@ fn plus_one_tuple_list_trait_without_lifetime() {
 
 #[test]
 fn empty() {
-    assert_eq!(().to_tuple_list(), Empty);
-    assert_eq!((),                 Empty.to_tuple());
+    assert_eq!(().into_tuple_list(), Empty);
+    assert_eq!((),                 Empty.into_tuple());
 }
 
 #[test]
 fn single() {
-    assert_eq!((false,).to_tuple_list(), Pair(false, Empty));
-    assert_eq!((false,),                 Pair(false, Empty).to_tuple());
+    assert_eq!((false,).into_tuple_list(), Pair(false, Empty));
+    assert_eq!((false,),                 Pair(false, Empty).into_tuple());
 }
 
 #[test]
 fn double() {
-    assert_eq!((false, 1).to_tuple_list(), Pair(false, Pair(1, Empty)));
-    assert_eq!((false, 1),                 Pair(false, Pair(1, Empty)).to_tuple());
+    assert_eq!((false, 1).into_tuple_list(), Pair(false, Pair(1, Empty)));
+    assert_eq!((false, 1),                 Pair(false, Pair(1, Empty)).into_tuple());
 }
 
 #[test]
 fn triple() {
-    assert_eq!((false, 1, String::from("abc")).to_tuple_list(), Pair(false, Pair(1, Pair(String::from("abc"), Empty))));
-    assert_eq!((false, 1, String::from("abc")),                 Pair(false, Pair(1, Pair(String::from("abc"), Empty))).to_tuple());
+    assert_eq!((false, 1, String::from("abc")).into_tuple_list(), Pair(false, Pair(1, Pair(String::from("abc"), Empty))));
+    assert_eq!((false, 1, String::from("abc")),                 Pair(false, Pair(1, Pair(String::from("abc"), Empty))).into_tuple());
 }
 
 #[test]
