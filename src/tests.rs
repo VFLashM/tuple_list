@@ -153,6 +153,76 @@ fn all_features() {
 }
 
 #[test]
+fn reverse_test() {
+    trait Rewind<Done: TupleList> {
+        type RewindResult: TupleList;
+
+        fn rewind(self, done: Done) -> Self::RewindResult;
+    }
+
+    impl<Done: TupleList> Rewind<Done> for Empty {
+        type RewindResult = Done;
+
+        fn rewind(self, done: Done) -> Done { done }
+    }
+
+    impl<Done, Next, Tail> Rewind<Done> for Pair<Next, Tail> where 
+        Done: TupleList,
+        Pair<Next, Done>: TupleList,
+        Tail: Rewind<Pair<Next, Done>> + TupleList,
+    {
+        type RewindResult = Tail::RewindResult;
+
+        fn rewind(self, done: Done) -> Self::RewindResult {
+            let Pair(next, tail) = self;
+            return tail.rewind(Pair(next, done));
+        }
+    }
+
+    fn reverse<T>(t: T) -> T::RewindResult where
+        T: Rewind<Empty>
+    {
+        t.rewind(Empty)
+    }
+
+    let original = tuple_list!(1, "foo", false);
+    let reversed = tuple_list!(false, "foo", 1);
+    assert_eq!(reverse(original), reversed);
+}
+
+#[test]
+fn append_test() {
+    trait Append<T>: TupleList {
+        type AppendResult: TupleList;
+
+        fn append(self, value: T) -> Self::AppendResult;
+    }
+
+    impl<T> Append<T> for Empty {
+        type AppendResult = Pair<T, Empty>;
+
+        fn append(self, value: T) -> Self::AppendResult { Pair(value, Empty) }
+    }
+
+    impl<Head, Tail, T> Append<T> for Pair<Head, Tail> where
+        Self: TupleList,
+        Tail: Append<T>,
+        Pair<Head, Tail::AppendResult>: TupleList,
+    {
+        type AppendResult = Pair<Head, Tail::AppendResult>;
+
+        fn append(self, value: T) -> Self::AppendResult { 
+            let Pair(head, tail) = self;
+            return Pair(head, tail.append(value));
+        }
+    }
+
+    let original = tuple_list!(1, "foo", false);
+    let appended = tuple_list!(1, "foo", false, 5);
+    assert_eq!(original.append(5), appended);
+}
+
+#[test]
 fn swap_string_and_int_dual_traits_recursion() {
     // real trait, implemented for tuples and primitive types
     trait SwapStringAndInt     {
