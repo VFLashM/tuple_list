@@ -5,10 +5,10 @@
 //! 
 //! # Rationale
 //! 
-//! As of writing this crate, rust does not support variadic generics
+//! As of writing this crate, Rust does not support variadic generics
 //! and does not allow to reason about tuples in general.
 //! 
-//! Most importantly, rust does not allow one to generically
+//! Most importantly, Rust does not allow one to generically
 //! implement a trait for all tuples whose elements implement it.
 //! 
 //! This crate attempts to fill the gap by providing a way
@@ -21,21 +21,72 @@
 //! On each level it consists of a pair `(Head, Tail)`, where `Head` is tuple element and
 //! `Tail` is a remainder of the list. For last element `Tail` is an empty list.
 //! 
-//! Unlike regular flat tuples, such recursive tuples can be effectively reasoned about in rust.
+//! Unlike regular flat tuples, such recursive tuples can be effectively reasoned about in Rust.
 //! 
 //! This crate calls such structures "tuple lists" and provides a set of traits and macros
 //! allowing one to conveniently work with them.
 //! 
-//! # Example 1: `CustomDisplay` recursive trait
+//! # Example 1: `PlusOne` recursive trait
+//! 
+//! Let's create a trait which adds one to each element of a tuple list
+//! of arbitrary length, behaving differently depending on element type.
+//! 
+//! ```
+//! // `TupleList` is a helper trait implemented by all tuple lists.
+//! // Its use is optional, but it allows to avoid accidentally
+//! // implementing traits for something other than tuple lists.
+//! use tuple_list::TupleList;
+//! 
+//! // Define trait and implement it for several primitive types.
+//! trait PlusOne {
+//!     fn plus_one(&mut self);
+//! }
+//! impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
+//! impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
+//! impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
+//! 
+//! // Now we have to implement trait for an empty tuple,
+//! // thus defining initial condition.
+//! impl PlusOne for () {
+//!     fn plus_one(&mut self) {}
+//! }
+//! 
+//! // Now we can implement trait for a non-empty tuple list,
+//! // thus defining recursion and supporting tuple lists of arbitrary length.
+//! impl<Head, Tail> PlusOne for (Head, Tail) where
+//!     Head: PlusOne,
+//!     Tail: PlusOne + TupleList,
+//! {
+//!     fn plus_one(&mut self) {
+//!         self.0.plus_one();
+//!         self.1.plus_one();
+//!     }
+//! }
+//! 
+//! // `tuple_list!` as a helper macro used to create
+//! // tuple lists from a list of arguments.
+//! use tuple_list::tuple_list;
+//! 
+//! // Now we can use our trait on tuple lists.
+//! let mut tuple_list = tuple_list!(2, false, String::from("abc"));
+//! tuple_list.plus_one();
+//! 
+//! // tuple_list! macro also allows us to unpack tuple lists
+//! let tuple_list!(a, b, c) = tuple_list;
+//! assert_eq!(a, 3);
+//! assert_eq!(b, true);
+//! assert_eq!(&c, "abc1");
+//! ```
+//! 
+//! # Example 2: `CustomDisplay` recursive trait
 //! 
 //! Let's create a simple `Display`-like trait implemented for all tuples
-//! whose elements implement it.
+//! lists whose elements implement it.
 //! 
 //! ```
 //! # use tuple_list::TupleList;
 //! # use tuple_list::tuple_list;
-//! 
-//! // Define trait and implement it for several standard types.
+//! // Define the trait and implement it for several standard types.
 //! trait CustomDisplay {
 //!     fn fmt(&self) -> String;
 //! }
@@ -43,14 +94,14 @@
 //! impl CustomDisplay for bool { fn fmt(&self) -> String { self.to_string() } }
 //! impl CustomDisplay for &str { fn fmt(&self) -> String { self.to_string() } }
 //! 
-//! // Now we have to implement trait for empty tuple,
+//! // Now we have to implement trait for an empty tuple,
 //! // thus defining initial condition.
 //! impl CustomDisplay for () {
 //!     fn fmt(&self) -> String { String::from("<empty>") }
 //! }
 //! 
 //! // In order to avoid having trailing spaces,
-//! // we have to define custom implementation
+//! // we can define custom implementation
 //! // for tuple lists of exactly one element.
 //! impl<Head> CustomDisplay for (Head, ()) where
 //!     Head: CustomDisplay,
@@ -79,7 +130,7 @@
 //!     "2 false abc",
 //! );
 //! 
-//! // Since tuple lists implement `CustomDisplay`, they can
+//! // Since tuple lists implement `CustomDisplay` themselves, they can
 //! // be elements in other tuple lists implementing `CustomDisplay`.
 //! let nested_tuple_list = tuple_list!(2, false, "abc", tuple_list!(3, true, "def"));
 //! assert_eq!(
@@ -88,67 +139,18 @@
 //! );
 //! ```
 //! 
-//! # Example 2: `PlusOne` recursive trait
-//! 
-//! Let's create a trait which adds one to each element of a tuple,
-//! behaving differently depending on element type.
-//! 
-//! ```
-//! # use tuple_list::TupleList;
-//! 
-//! // Define trait and implement it for several primitive types.
-//! trait PlusOne {
-//!     fn plus_one(&mut self);
-//! }
-//! impl PlusOne for i32    { fn plus_one(&mut self) { *self += 1; } }
-//! impl PlusOne for bool   { fn plus_one(&mut self) { *self = !*self; } }
-//! impl PlusOne for String { fn plus_one(&mut self) { self.push('1'); } }
-//! 
-//! // Now we have to implement trait for empty tuple,
-//! // thus defining initial condition.
-//! impl PlusOne for () {
-//!     fn plus_one(&mut self) {}
-//! }
-//! 
-//! // Now we can implement trait for a non-empty tuple list,
-//! // this defining recursion and supporting tuple lists of arbitrary length.
-//! impl<Head, Tail> PlusOne for (Head, Tail) where
-//!     Head: PlusOne,
-//!     Tail: PlusOne + TupleList,
-//! {
-//!     fn plus_one(&mut self) {
-//!         self.0.plus_one();
-//!         self.1.plus_one();
-//!     }
-//! }
-//! 
-//! // `tuple_list!` macro creates tuple lists from list of arguments.
-//! use tuple_list::tuple_list;
-//! 
-//! // Now we can use our trait on tuple lists.
-//! let mut tuple_list = tuple_list!(2, false, String::from("abc"));
-//! tuple_list.plus_one();
-//! 
-//! // tuple_list! macro also allows us to unpack tuple lists
-//! let tuple_list!(a, b, c) = tuple_list;
-//! assert_eq!(a, 3);
-//! assert_eq!(b, true);
-//! assert_eq!(&c, "abc1");
-//! ```
-//! 
 //! # Example 3: `SwapStringAndInt` recursive trait
 //! 
 //! Let's implement a trait which converts `i32` to `String` and vice versa.
 //! 
-//! This example is way more complex because it maps tuple list into
-//! another tuple list.
+//! This example is way more complex that the other
+//! because it maps one tuple list into another tuple list.
 //! 
 //! ```
 //! # use tuple_list::TupleList;
 //! # use tuple_list::tuple_list;
-//! 
-//! // Let's define and implement trait for i32 and String
-//! // so that it converts String to i32 and vice versa.
+//! // Let's define and implement a trait for `i32` and `String`
+//! // so that it converts `String` to `i32` and vice versa.
 //! trait SwapStringAndInt {
 //!     type Other;
 //!     fn swap(self) -> Self::Other;
@@ -162,7 +164,7 @@
 //!     fn swap(self) -> i32 { self.parse().unwrap() }
 //! }
 //! 
-//! // Now we have to implement trait for empty tuple,
+//! // Now we have to implement trait for an empty tuple,
 //! // thus defining initial condition.
 //! impl SwapStringAndInt for () {
 //!     type Other = ();
@@ -170,7 +172,7 @@
 //! }
 //! 
 //! // Now we can implement trait for a non-empty tuple list,
-//! // this defining recursion and supporting tuple lists of arbitrary length.
+//! // thus defining recursion and supporting tuple lists of arbitrary length.
 //! impl<Head, Tail, TailOther> SwapStringAndInt for (Head, Tail) where
 //!     Head: SwapStringAndInt,
 //!     Tail: SwapStringAndInt<Other=TailOther> + TupleList,
@@ -182,49 +184,12 @@
 //!     }
 //! }
 //! 
-//! let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
-//! 
 //! // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
-//! // on each member and returnign tuple list of resulting values.
-//! let swapped = original.swap();
+//! // on each member and returning tuple list of resulting values.
+//! let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
+//! let swapped  = tuple_list!(String::from("4"), 2, String::from("7"), 13);
 //! 
-//! // Not that types of elements have changed.
-//! assert_eq!(
-//!     swapped,
-//!     tuple_list!(String::from("4"), 2, String::from("7"), 13),
-//! );
-//! 
-//! // Since tuple lists now implement SwapStringAndInt,
-//! // they can even contain nested tuple lists:
-//! let nested = tuple_list!(tuple_list!(1, String::from("2")), 3);
-//! let nested_swapped = nested.swap();
-//! assert_eq!(
-//!     nested_swapped,
-//!     tuple_list!(tuple_list!(String::from("1"), 2), String::from("3")),
-//! );
-//! 
-//! // Now, we can't implement `SwapStringAndInt` for regular tuples
-//! // because it would conflict with tuple list implementation,
-//! // but we can define helper function allowing us to use `swap`
-//! // on regular tuples seamlessly.
-//! use tuple_list::Tuple;
-//! 
-//! // Argument of this function is a regular tuple, not a tuple list.
-//! fn swap<T, TL, OtherTL>(tuple: T) -> OtherTL::Tuple where
-//!     T: Tuple<TupleList=TL>, // argument type
-//!     TL: TupleList + SwapStringAndInt<Other=OtherTL>, // tuple list corresponding to argument tuple
-//!     OtherTL: TupleList, // another tuple list, result of `SwapStringAndInt::swap` applied to original tuple list
-//! {
-//!     tuple.into_tuple_list().swap().into_tuple()
-//! }
-//! 
-//! // Now we can indirectly use `SwapStringAndInt` with regular tuples.
-//! let original_tuple = (4, String::from("2"), 7, String::from("13"));
-//! let swapped_tuple = swap(original_tuple);
-//! assert_eq!(
-//!     swapped_tuple,
-//!     (String::from("4"), 2, String::from("7"), 13),
-//! );
+//! assert_eq!(original.swap(), swapped);
 //! ```
 //! 
 //! # Example 4: prepend and append functions
@@ -234,11 +199,11 @@
 //! ```
 //! # use tuple_list::TupleList;
 //! # use tuple_list::tuple_list;
-//! // Prepend is a trivial operation with tuple lists.
+//! // Prepend is a trivial operation for tuple lists.
 //! // We just create a new pair from prepended element
 //! // and the remainder of the list.
-//! fn prepend<E, T: TupleList>(head: E, tail: T) -> (E, T) {
-//!     (head, tail)
+//! fn prepend<T, Tail: TupleList>(value: T, tail: Tail) -> (T, Tail) {
+//!     (value, tail)
 //! }
 //! 
 //! // Append is a bit more comples. We'll need a trait for that.
@@ -248,11 +213,11 @@
 //!     fn append(self, value: T) -> Self::AppendResult;
 //! }
 //! 
-//! // Implement append for empty tuple.
+//! // Implement append for an empty tuple list.
 //! impl<T> Append<T> for () {
 //!     type AppendResult = (T, ());
 //! 
-//!     // Append for the empty tuple is trivial.
+//!     // Append for an empty tuple list is quite trivial.
 //!     fn append(self, value: T) -> Self::AppendResult { (value, ()) }
 //! }
 //! 
@@ -279,17 +244,20 @@
 //! let original  = tuple_list!(   1, "foo", false);
 //! let appended  = tuple_list!(   1, "foo", false, 5);
 //! let prepended = tuple_list!(5, 1, "foo", false);
+//! 
 //! assert_eq!(original.append(5), appended);
 //! assert_eq!(prepend(5, original), prepended);
 //! ```
 //! 
 //! # Example 5: reverse function
 //! 
+//! We can also implement a function which reverses elements of a tuple list.
+//! 
 //! ```
 //! # use tuple_list::TupleList;
 //! # use tuple_list::tuple_list;
 //! // Rewind is a helper trait which maintains two tuple lists:
-//! // `Todo` (which is `Self` for the trait) is a remainder of a tuple list to be reversed.
+//! // `Todo` (which is `Self` for the trait) is the remainder of a tuple list to be reversed.
 //! // `Done` is already reversed part of it.
 //! trait Rewind<Done: TupleList> {
 //!     // RewindResult is the type of fully reversed tuple.
@@ -322,12 +290,11 @@
 //!     }
 //! }
 //! 
-//! // Helper function which uses to `Rewind` trait to
-//! // reverse tuple list.
+//! // Helper function which uses `Rewind` trait to reverse a tuple list.
 //! fn reverse<T>(tuple: T) -> T::RewindResult where
 //!     T: Rewind<()>
 //! {
-//!     // Initial condition, whole tuple is `Todo`,
+//!     // Initial condition, whole tuple list is `Todo`,
 //!     // empty tuple is `Done`.
 //!     tuple.rewind(())
 //! }
@@ -335,6 +302,7 @@
 //! // Now `reverse` is usable on tuple lists.
 //! let original = tuple_list!(1, "foo", false);
 //! let reversed = tuple_list!(false, "foo", 1);
+//! 
 //! assert_eq!(reverse(original), reversed);
 //! ```
 //! 
@@ -345,7 +313,7 @@
 //! tuples into tuple lists and vice versa.
 //! 
 //! Best way to handle interoperability is to store your data
-//! as tuple lists and convert to tuples if necessary.
+//! as tuple lists and convert them to tuples if necessary.
 //! 
 //! Alternatively it's possible to create a helper function
 //! which accepts a tuple, converts it to a tuple list,
@@ -381,16 +349,19 @@
 //! 
 //! fn append<T, AppendedTupleList, Elem>(tuple: T, elem: Elem) -> AppendedTupleList::Tuple where
 //!     T: Tuple,                                                   // input argument tuple
-//!     T::TupleList: Append<Elem, AppendResult=AppendedTupleList>, // input argument tuple list can be appended
+//!     T::TupleList: Append<Elem, AppendResult=AppendedTupleList>, // input argument tuple list
 //!     AppendedTupleList: TupleList,                               // resulting tuple list
 //! {
+//!     // Convert tuple into tuple list, append the element
+//!     // and convert the result back into tuple.
 //!     tuple.into_tuple_list().append(elem).into_tuple()
 //! }
 //! 
-//! // Unlike `Append` trait whihc is defined for tuple lists,
+//! // Unlike `Append` trait which is defined for tuple lists,
 //! // `append` function works on regular tuples.
 //! let original  = (1, "foo", false);
 //! let appended  = (1, "foo", false, 5);
+//! 
 //! assert_eq!(append(original, 5), appended);
 //! ```
 //! 
@@ -430,17 +401,18 @@
 //!     fn plus_one(self);
 //! }
 //! 
-//! // Now we have to implement trait for empty tuple,
+//! // Now we have to implement trait for an empty tuple,
 //! // thus defining initial condition.
 //! impl PlusOneTupleList for () {
 //!     fn plus_one(self) {}
 //! }
 //! 
 //! // Now we can implement trait for a non-empty tuple list,
-//! // this defining recursion and supporting tuple lists of arbitrary length.
+//! // thus defining recursion and supporting tuple lists of arbitrary length.
 //! //
-//! // Note that we're implementing PlusOne for *tuple list of mutable references*,
-//! // and as a result head of the list is a mutable reference, not a value.
+//! // Note that we're implementing `PlusOneTupleList` for
+//! // *tuple list of mutable references*, and as a result
+//! // head of the list is a mutable reference, not a value.
 //! impl<Head, Tail> PlusOneTupleList for (&mut Head, Tail) where
 //!     Self: TupleList,
 //!     Head: PlusOne,
@@ -452,7 +424,7 @@
 //!     }
 //! }
 //! 
-//! // Now let's define helper function operating on regular tuples.NonEmptyTuple
+//! // Now let's define a helper function operating on regular tuples.
 //! fn plus_one<'a, T, RT>(tuple: &'a mut T) where
 //!     T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,
 //!     RT: Tuple + 'a,
@@ -462,7 +434,7 @@
 //!     tuple.as_tuple_of_mut_refs().into_tuple_list().plus_one()
 //! }
 //! 
-//! // Now we can use helper function on regular tuples.
+//! // Now we can use this helper function on regular tuples.
 //! let mut tuple = (2, false, String::from("abc"));
 //! plus_one(&mut tuple);
 //! 
@@ -484,11 +456,12 @@
 //! `tuple_list` crate, but quickly leads to orphan rules
 //! violations when used outside of it.
 //! 
-//! You may see working test of it in `tuple_list::test::all_features`,
+//! You can see a working example of a trait implemented for
+//! regular tuples in `tuple_list::test::all_features`,
 //! but it's overly complex and pretty much experimental.
 //! 
 //! It should be possible to define recursive traits on regular tuples
-//! once trait specialization feature is implemented in rust.
+//! once trait specialization feature is implemented in Rust.
 
 /// Trait providing conversion from tuple list into tuple.
 ///
