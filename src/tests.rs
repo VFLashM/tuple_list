@@ -180,18 +180,17 @@ fn swap_string_and_int_dual_traits_recursion() {
         type Other = Empty;
         fn swap(self) -> Empty { Empty }
     }
-    impl<Head, Tail, TailTuple, TailTupleOther> SwapStringAndIntTupleList for Pair<Head, Tail> where
+    impl<Head, Tail> SwapStringAndIntTupleList for Pair<Head, Tail> where
         Head: SwapStringAndInt,
-        Tail: TupleList<Tuple=TailTuple>,
-        TailTuple: Tuple + SwapStringAndInt<Other=TailTupleOther>,
-        TailTupleOther: Tuple,
+        Tail: SwapStringAndIntTupleList + TupleList,
+        Tail::Other: TupleList,
     {
-        type Other = Pair<Head::Other, TailTupleOther::TupleList>;
+        type Other = Pair<Head::Other, Tail::Other>;
         fn swap(self) -> Self::Other {
             // note that actual work is done by `SwapStringAndInt` trait
             // head is `SwapStringAndInt`, tail is converted to tuple
             // which is also `SwapStringAndInt` and then converted back to tuple list
-            Pair(self.0.swap(), self.1.to_tuple().swap().to_tuple_list())
+            Pair(self.0.swap(), self.1.swap())
         }
     }
 
@@ -403,11 +402,10 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     }
 
     // original trait implementation for regular tuples
-    impl<'a, T, RT, Head, Tail> PlusOne<'a> for T where
-        T: TupleAsRef<'a, TupleOfMutRefs=RT>,       // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=Pair<Head, Tail>> + 'a,     // tuple of references which can be converted into tuple list
-        Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
-        Tail: TupleList,
+    impl<'a, T, RT, RTL> PlusOne<'a> for T where
+        T: TupleAsRef<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
+        RT: Tuple<TupleList=RTL> + 'a,        // tuple of references which can be converted into tuple list
+        RTL: TupleList + PlusOneTupleList,    // tuple list which implements recursive trait
     {
         fn plus_one(&'a mut self) {
             // 1. converts reference to tuple into tuple of references
