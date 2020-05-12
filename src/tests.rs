@@ -2,7 +2,6 @@ use super::*;
 
 #[test]
 fn all_features() {
-
     trait NumberOrString {
         type OtherType;
 
@@ -42,33 +41,33 @@ fn all_features() {
     }
 
     // initial condition
-    impl NumberOrStringTupleListValue for Empty {
-        type OtherType = Empty;
+    impl NumberOrStringTupleListValue for () {
+        type OtherType = ();
 
-        fn into_other(self) -> Self::OtherType { Empty }
+        fn into_other(self) -> Self::OtherType { () }
     }
-    impl NumberOrStringRef for Empty {
+    impl NumberOrStringRef for () {
         fn format_ref(self) -> String { String::new() }
     }
-    impl NumberOrStringMutRef for Empty {
+    impl NumberOrStringMutRef for () {
         fn plus_one_ref(self) {}
     }
 
     // recursion
-    impl<Head, Tail> NumberOrStringTupleListValue for Pair<Head, Tail> where
+    impl<Head, Tail> NumberOrStringTupleListValue for (Head, Tail) where
         Head: NumberOrString,
         Tail: NumberOrStringTupleListValue,
         Self: TupleList,
-        Pair<Head::OtherType, Tail::OtherType>: TupleList,
+        (Head::OtherType, Tail::OtherType): TupleList,
     {
-        type OtherType = Pair<Head::OtherType, Tail::OtherType>;
+        type OtherType = (Head::OtherType, Tail::OtherType);
 
         fn into_other(self) -> Self::OtherType {
-            Pair(self.0.into_other(), self.1.into_other())
+            (self.0.into_other(), self.1.into_other())
         }
     }
 
-    impl<Head, Tail> NumberOrStringRef for Pair<&Head, Tail> where
+    impl<Head, Tail> NumberOrStringRef for (&Head, Tail) where
         Head: NumberOrString,
         Tail: NumberOrStringRef + TupleList,
         Self: TupleList,
@@ -78,7 +77,7 @@ fn all_features() {
         }
     }
 
-    impl<Head, Tail> NumberOrStringMutRef for Pair<&mut Head, Tail> where
+    impl<Head, Tail> NumberOrStringMutRef for (&mut Head, Tail) where
         Head: NumberOrString,
         Tail: NumberOrStringMutRef + TupleList,
         Self: TupleList,
@@ -153,73 +152,213 @@ fn all_features() {
 }
 
 #[test]
+fn value_single_trait() {
+    trait NumberOrString {
+        type OtherType;
+
+        fn into_other(self) -> Self::OtherType;
+    }
+
+    impl NumberOrString for i32 {
+        type OtherType = String;
+
+        fn into_other(self) -> Self::OtherType { self.to_string() }
+    }
+
+    impl NumberOrString for String {
+        type OtherType = i32;
+
+        fn into_other(self) -> Self::OtherType { self.parse().unwrap() }
+    }
+
+    // initial condition
+    impl NumberOrString for () {
+        type OtherType = ();
+
+        fn into_other(self) -> Self::OtherType { () }
+    }
+
+    // recursion
+    impl<Head, Tail> NumberOrString for (Head, Tail) where
+        Head: NumberOrString,
+        Tail: TupleList + NumberOrString,
+        Self: TupleList,
+        (Head::OtherType, Tail::OtherType): TupleList,
+    {
+        type OtherType = (Head::OtherType, Tail::OtherType);
+
+        fn into_other(self) -> Self::OtherType {
+            (self.0.into_other(), self.1.into_other())
+        }
+    }
+
+    fn into_other<T, TL, OTL>(tuple: T) -> OTL::Tuple where
+        T: Tuple<TupleList=TL>,
+        TL: TupleList + NumberOrString<OtherType=OTL>,
+        OTL: TupleList,
+    {
+        tuple.into_tuple_list().into_other().into_tuple()
+    }
+
+    let src = (1, String::from("2"), 3, String::from("4"));
+    let dst = (String::from("1"), 2, String::from("3"), 4);
+    assert_eq!(
+        into_other(src),
+        dst,
+    );
+}
+
+#[test]
 fn reverse_test() {
+    // Rewind maintains two tuple lists:
+    // `Todo` (which is `Self` for the trait) is a remainder of a tuple list to be reversed.
+    // `Done` is already reversed part of it.
     trait Rewind<Done: TupleList> {
+        // RewindResult is the type of fully reversed tuple.
         type RewindResult: TupleList;
 
         fn rewind(self, done: Done) -> Self::RewindResult;
     }
 
-    impl<Done: TupleList> Rewind<Done> for Empty {
+    // Initial condition.
+    impl<Done: TupleList> Rewind<Done> for () {
         type RewindResult = Done;
 
+        // When nothing is left to do, just return reversed tuple list.
         fn rewind(self, done: Done) -> Done { done }
     }
 
-    impl<Done, Next, Tail> Rewind<Done> for Pair<Next, Tail> where 
+    // Recursion step.
+    impl<Done, Next, Tail> Rewind<Done> for (Next, Tail) where
         Done: TupleList,
-        Pair<Next, Done>: TupleList,
-        Tail: Rewind<Pair<Next, Done>> + TupleList,
+        (Next, Done): TupleList,
+        Tail: Rewind<(Next, Done)> + TupleList,
     {
         type RewindResult = Tail::RewindResult;
 
+        // Strip head element from `Todo` and prepend it to `Done` list,
+        // then recurse on remaining tail of `Todo`.
         fn rewind(self, done: Done) -> Self::RewindResult {
-            let Pair(next, tail) = self;
-            return tail.rewind(Pair(next, done));
+            let (next, tail) = self;
+            return tail.rewind((next, done));
         }
     }
 
-    fn reverse<T>(t: T) -> T::RewindResult where
-        T: Rewind<Empty>
+    // Helper function which uses to `Rewind` trait to
+    // reverse tuple list.
+    fn reverse_tuple_List<T>(tuple: T) -> T::RewindResult where
+        T: Rewind<()>
     {
-        t.rewind(Empty)
+        // Initial condition, whole tuple is `Todo`,
+        // empty tuple is `Done`.
+        tuple.rewind(())
     }
 
-    let original = tuple_list!(1, "foo", false);
-    let reversed = tuple_list!(false, "foo", 1);
-    assert_eq!(reverse(original), reversed);
+    // Now `reverse_tuple_List` is usable on tuple lists.
+    {
+        let original = tuple_list!(1, "foo", false);
+        let reversed = tuple_list!(false, "foo", 1);
+        assert_eq!(reverse_tuple_List(original), reversed);
+    }
+
+    // Let's also define a helper function to be used on regular tuples.
+    fn reverse<T, ReversedTupleList>(tuple: T) -> ReversedTupleList::Tuple where
+        T: Tuple,
+        T::TupleList: Rewind<(), RewindResult=ReversedTupleList>,
+        ReversedTupleList: TupleList,
+    {
+        let tuple_list = tuple.into_tuple_list();
+        let reversed_tuple_list = reverse_tuple_List(tuple_list);
+        return reversed_tuple_list.into_tuple();
+    }
+
+    // Now we can reverse regular tuples.
+    {
+        let original = (1, "foo", false);
+        let reversed = (false, "foo", 1);
+        assert_eq!(reverse(original), reversed);
+    }
 }
 
 #[test]
 fn append_test() {
+    // Prepend is a trivial operation with tuple lists.
+    // We just create a new pair from prepended element
+    // and the remainder of the list.
+    fn prepend_tuple_list<E, T: TupleList>(head: E, tail: T) -> (E, T) {
+        (head, tail)
+    }
+
+    // Append is a bit more comples. We'll need a trait for that.
     trait Append<T>: TupleList {
         type AppendResult: TupleList;
 
         fn append(self, value: T) -> Self::AppendResult;
     }
 
-    impl<T> Append<T> for Empty {
-        type AppendResult = Pair<T, Empty>;
+    // Implement append for empty tuple.
+    impl<T> Append<T> for () {
+        type AppendResult = (T, ());
 
-        fn append(self, value: T) -> Self::AppendResult { Pair(value, Empty) }
+        // Append for the empty tuple is trivial.
+        fn append(self, value: T) -> Self::AppendResult { (value, ()) }
     }
 
-    impl<Head, Tail, T> Append<T> for Pair<Head, Tail> where
+    // Implement append for non-empty tuple list.
+    impl<Head, Tail, T> Append<T> for (Head, Tail) where
         Self: TupleList,
         Tail: Append<T>,
-        Pair<Head, Tail::AppendResult>: TupleList,
+        (Head, Tail::AppendResult): TupleList,
     {
-        type AppendResult = Pair<Head, Tail::AppendResult>;
+        type AppendResult = (Head, Tail::AppendResult);
 
-        fn append(self, value: T) -> Self::AppendResult { 
-            let Pair(head, tail) = self;
-            return Pair(head, tail.append(value));
+        // Here we deconstruct tuple list
+        // and recursively call append on the
+        // tail of it.
+        fn append(self, value: T) -> Self::AppendResult {
+            let (head, tail) = self;
+            return (head, tail.append(value));
         }
     }
 
-    let original = tuple_list!(1, "foo", false);
-    let appended = tuple_list!(1, "foo", false, 5);
-    assert_eq!(original.append(5), appended);
+    // Now we can use our append and prepend functions
+    // on tuple lists.
+    {
+        let original  = tuple_list!(   1, "foo", false);
+        let appended  = tuple_list!(   1, "foo", false, 5);
+        let prepended = tuple_list!(5, 1, "foo", false);
+        assert_eq!(original.append(5), appended);
+        assert_eq!(prepend_tuple_list(5, original), prepended);
+    }
+
+    // But that's not all, let's also define helper functions
+    // that work on regular tuples.
+    fn prepend<Elem, T, PrependedTuple>(elem: Elem, tuple: T) -> PrependedTuple where
+        T: Tuple,                                              // input argument tuple
+        (Elem, T::TupleList): TupleList<Tuple=PrependedTuple>, // resulting tuple list
+        PrependedTuple: Tuple,                                 // resulting tuple
+    {
+        let tuple_list = tuple.into_tuple_list();
+        let prepended_tuple_list = prepend_tuple_list(elem, tuple_list);
+        return prepended_tuple_list.into_tuple()
+    }
+    fn append<T, AppendedTupleList, Elem>(tuple: T, elem: Elem) -> AppendedTupleList::Tuple where
+        T: Tuple,                                                   // input argument tuple
+        T::TupleList: Append<Elem, AppendResult=AppendedTupleList>, // input argument tuple list can be appended
+        AppendedTupleList: TupleList,                               // resulting tuple list
+    {
+        tuple.into_tuple_list().append(elem).into_tuple()
+    }
+
+    // Now we can use our append and prepend functions
+    // on regular tuples.
+    {
+        let original  = (   1, "foo", false);
+        let appended  = (   1, "foo", false, 5);
+        let prepended = (5, 1, "foo", false);
+        assert_eq!(append(original, 5), appended);
+        assert_eq!(prepend(5, original), prepended);
+    }
 }
 
 #[test]
@@ -246,21 +385,21 @@ fn swap_string_and_int_dual_traits_recursion() {
         fn swap(self) -> Self::Other;
     }
     // initial condition for recursion
-    impl SwapStringAndIntTupleList for Empty {
-        type Other = Empty;
-        fn swap(self) -> Empty { Empty }
+    impl SwapStringAndIntTupleList for () {
+        type Other = ();
+        fn swap(self) -> () { () }
     }
-    impl<Head, Tail> SwapStringAndIntTupleList for Pair<Head, Tail> where
+    impl<Head, Tail> SwapStringAndIntTupleList for (Head, Tail) where
         Head: SwapStringAndInt,
         Tail: SwapStringAndIntTupleList + TupleList,
         Tail::Other: TupleList,
     {
-        type Other = Pair<Head::Other, Tail::Other>;
+        type Other = (Head::Other, Tail::Other);
         fn swap(self) -> Self::Other {
             // note that actual work is done by `SwapStringAndInt` trait
             // head is `SwapStringAndInt`, tail is converted to tuple
             // which is also `SwapStringAndInt` and then converted back to tuple list
-            Pair(self.0.swap(), self.1.swap())
+            (self.0.swap(), self.1.swap())
         }
     }
 
@@ -352,9 +491,9 @@ fn custom_display_tuple() {
     trait CustomDisplay {
         fn fmt(self) -> String;
     }
-    impl CustomDisplay for i32    { fn fmt(self) -> String { self.to_string() } }
-    impl CustomDisplay for bool   { fn fmt(self) -> String { self.to_string() } }
-    impl CustomDisplay for String { fn fmt(self) -> String { self } }
+    impl CustomDisplay for i32  { fn fmt(self) -> String { self.to_string() } }
+    impl CustomDisplay for bool { fn fmt(self) -> String { self.to_string() } }
+    impl CustomDisplay for &str { fn fmt(self) -> String { self.to_string() } }
 
     impl CustomDisplay for () {
         fn fmt(self) -> String { String::new() }
@@ -371,13 +510,13 @@ fn custom_display_tuple() {
         }
     }
 
-    let tuple = (2, false, String::from("abc"));
+    let tuple = (2, false, "abc");
     assert_eq!(
         tuple.fmt(),
         "2 false abc ",
     );
 
-    let recursive_tuple = (2, false, String::from("abc"), (3, true, String::from("def")));
+    let recursive_tuple = (2, false, "abc", (3, true, "def"));
     assert_eq!(
         recursive_tuple.fmt(),
         "2 false abc 3 true def  ",
@@ -455,12 +594,12 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     }
 
     // initial condition
-    impl PlusOneTupleList for Empty {
+    impl PlusOneTupleList for () {
         fn plus_one(self) {}
     }
 
     // recursion
-    impl<'a, Head, Tail> PlusOneTupleList for Pair<&'a mut Head, Tail> where 
+    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where 
         Head: PlusOne<'a> + 'a,
         Tail: PlusOneTupleList + 'a,
         Self: TupleList,
@@ -516,12 +655,12 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     }
 
     // initial condition
-    impl PlusOneTupleList for Empty {
+    impl PlusOneTupleList for () {
         fn plus_one(self) {}
     }
 
     // recursion
-    impl<'a, Head, Tail> PlusOneTupleList for Pair<&'a mut Head, Tail> where 
+    impl<'a, Head, Tail> PlusOneTupleList for (&'a mut Head, Tail) where
         Head: PlusOne + 'a,
         Tail: PlusOneTupleList + 'a,
         Self: TupleList,
@@ -537,8 +676,8 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // will accept tuple and call function of recursive trait
     fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
         T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,           // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=Pair<Head, Tail>> + 'a,     // tuple of references which can be converted into tuple list
-        Pair<Head, Tail>: TupleList + PlusOneTupleList, // tuple list which implements recursive trait
+        RT: Tuple<TupleList=(Head, Tail)> + 'a,     // tuple of references which can be converted into tuple list
+        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
         Tail: TupleList,
     {
         // 1. converts reference to tuple into tuple of references
@@ -560,32 +699,32 @@ fn plus_one_tuple_list_trait_without_lifetime() {
 
 #[test]
 fn empty() {
-    assert_eq!(().into_tuple_list(), Empty);
-    assert_eq!((),                 Empty.into_tuple());
+    assert_eq!(().into_tuple_list(), ());
+    assert_eq!((),                 ().into_tuple());
 }
 
 #[test]
 fn single() {
-    assert_eq!((false,).into_tuple_list(), Pair(false, Empty));
-    assert_eq!((false,),                 Pair(false, Empty).into_tuple());
+    assert_eq!((false,).into_tuple_list(), (false, ()));
+    assert_eq!((false,),                   (false, ()).into_tuple());
 }
 
 #[test]
 fn double() {
-    assert_eq!((false, 1).into_tuple_list(), Pair(false, Pair(1, Empty)));
-    assert_eq!((false, 1),                 Pair(false, Pair(1, Empty)).into_tuple());
+    assert_eq!((false, 1).into_tuple_list(), (false, (1, ())));
+    assert_eq!((false, 1),                   (false, (1, ())).into_tuple());
 }
 
 #[test]
 fn triple() {
-    assert_eq!((false, 1, String::from("abc")).into_tuple_list(), Pair(false, Pair(1, Pair(String::from("abc"), Empty))));
-    assert_eq!((false, 1, String::from("abc")),                 Pair(false, Pair(1, Pair(String::from("abc"), Empty))).into_tuple());
+    assert_eq!((false, 1, "abc").into_tuple_list(), (false, (1, ("abc", ()))));
+    assert_eq!((false, 1, "abc"),                   (false, (1, ("abc", ()))).into_tuple());
 }
 
 #[test]
 fn complex_types() {
     use std::collections::HashMap;
-    let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = Pair(1, Pair("abc", Pair(HashMap::new(), Empty)));
+    let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
     let tuple_list!(a, b, c) = t;
     assert_eq!(a, 1);
     assert_eq!(b, "abc");
@@ -594,11 +733,11 @@ fn complex_types() {
 
 #[test]
 fn complex_values() {
-    let s = String::from("abc");
+    let s = "abc";
     let t = tuple_list!(s.len(), s, 2 + 3);
     let tuple_list!(a, b, c) = t;
     assert_eq!(a, 3);
-    assert_eq!(b, String::from("abc"));
+    assert_eq!(b, "abc");
     assert_eq!(c, 5);
 }
 
@@ -644,7 +783,7 @@ fn traits() {
     consume(copy);
 
     // test debug
-    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "Pair(1, Pair(false, Pair(\"abc\", Empty)))");
+    assert_eq!(format!("{:?}", tuple_list!(1, false, "abc")), "(1, (false, (\"abc\", ())))");
 
     // test default
     let default: tuple_list_type!(i32, bool, String) = Default::default();

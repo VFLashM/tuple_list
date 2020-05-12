@@ -23,10 +23,6 @@
 //! 
 //! Unlike regular flat tuples, such recursive tuples can be effectively reasoned about in rust.
 //! 
-//! Even better, we can define helper types in order to distinguish these data structures from
-//! regular tuples. This crate defines `Empty` and `Pair` helper structs,
-//! so tuple `(A, B, C, D)` is mapped into structure `Pair(A, Pair(B, Pair(C, Pair(D, Empty))))`.
-//!
 //! This crate calls such structures "tuple lists" and provides a set of traits and macros
 //! allowing one to conveniently work with them.
 //! 
@@ -36,9 +32,8 @@
 //! whose elements implement it.
 //! 
 //! ```
-//! use tuple_list::Pair;
-//! use tuple_list::Empty;
-//! use tuple_list::TupleList;
+//! # use tuple_list::TupleList;
+//! # use tuple_list::tuple_list;
 //! 
 //! // Define trait and implement it for several standard types.
 //! trait CustomDisplay {
@@ -50,11 +45,14 @@
 //! 
 //! // Now we have to implement trait for empty tuple,
 //! // thus defining initial condition.
-//! impl CustomDisplay for Empty {
+//! impl CustomDisplay for () {
 //!     fn fmt(&self) -> String { String::from("<empty>") }
 //! }
 //! 
-//! impl<Head> CustomDisplay for Pair<Head, Empty> where
+//! // In order to avoid having trailing spaces,
+//! // we have to define custom implementation
+//! // for tuple lists of exactly one element.
+//! impl<Head> CustomDisplay for (Head, ()) where
 //!     Head: CustomDisplay,
 //! {
 //!     fn fmt(&self) -> String {
@@ -62,11 +60,11 @@
 //!     }
 //! }
 //! 
-//! // Now we can implement trait for a non-empty tuple list, 
-//! // this defining recursion and supporting tuple lists of arbitrary length.
-//! impl<Head, Next, Tail> CustomDisplay for Pair<Head, Pair<Next, Tail>> where
+//! // Recursion step is defind for all tuple lists
+//! // longer than one element.
+//! impl<Head, Next, Tail> CustomDisplay for (Head, (Next, Tail)) where
 //!     Head: CustomDisplay,
-//!     Pair<Next, Tail>: CustomDisplay + TupleList,
+//!     (Next, Tail): CustomDisplay + TupleList,
 //!     Tail: TupleList,
 //! {
 //!     fn fmt(&self) -> String {
@@ -74,9 +72,6 @@
 //!     }
 //! }
 //! 
-//! // `tuple_list!` macro creates tuple lists from list of arguments.
-//! use tuple_list::tuple_list;
-//!
 //! // Ensure `fmt` is called for each element.
 //! let tuple_list = tuple_list!(2, false, "abc");
 //! assert_eq!(
@@ -99,8 +94,6 @@
 //! behaving differently depending on element type.
 //! 
 //! ```
-//! # use tuple_list::Pair;
-//! # use tuple_list::Empty;
 //! # use tuple_list::TupleList;
 //! 
 //! // Define trait and implement it for several primitive types.
@@ -113,13 +106,13 @@
 //! 
 //! // Now we have to implement trait for empty tuple,
 //! // thus defining initial condition.
-//! impl PlusOne for Empty {
+//! impl PlusOne for () {
 //!     fn plus_one(&mut self) {}
 //! }
 //! 
-//! // Now we can implement trait for a non-empty tuple list, 
+//! // Now we can implement trait for a non-empty tuple list,
 //! // this defining recursion and supporting tuple lists of arbitrary length.
-//! impl<Head, Tail> PlusOne for Pair<Head, Tail> where
+//! impl<Head, Tail> PlusOne for (Head, Tail) where
 //!     Head: PlusOne,
 //!     Tail: PlusOne + TupleList,
 //! {
@@ -129,7 +122,9 @@
 //!     }
 //! }
 //! 
-//! # use tuple_list::tuple_list;
+//! // `tuple_list!` macro creates tuple lists from list of arguments.
+//! use tuple_list::tuple_list;
+//! 
 //! // Now we can use our trait on tuple lists.
 //! let mut tuple_list = tuple_list!(2, false, String::from("abc"));
 //! tuple_list.plus_one();
@@ -149,9 +144,8 @@
 //! another tuple list.
 //! 
 //! ```
-//! # use tuple_list::Pair;
-//! # use tuple_list::Empty;
 //! # use tuple_list::TupleList;
+//! # use tuple_list::tuple_list;
 //! 
 //! // Let's define and implement trait for i32 and String
 //! // so that it converts String to i32 and vice versa.
@@ -170,25 +164,24 @@
 //! 
 //! // Now we have to implement trait for empty tuple,
 //! // thus defining initial condition.
-//! impl SwapStringAndInt for Empty {
-//!     type Other = Empty;
-//!     fn swap(self) -> Empty { Empty }
+//! impl SwapStringAndInt for () {
+//!     type Other = ();
+//!     fn swap(self) -> () { () }
 //! }
 //! 
-//! // Now we can implement trait for a non-empty tuple list, 
+//! // Now we can implement trait for a non-empty tuple list,
 //! // this defining recursion and supporting tuple lists of arbitrary length.
-//! impl<Head, Tail, TailOther> SwapStringAndInt for Pair<Head, Tail> where 
-//!     Head: SwapStringAndInt, 
+//! impl<Head, Tail, TailOther> SwapStringAndInt for (Head, Tail) where
+//!     Head: SwapStringAndInt,
 //!     Tail: SwapStringAndInt<Other=TailOther> + TupleList,
 //!     TailOther: TupleList,
 //! {
-//!     type Other = Pair<Head::Other, Tail::Other>;
+//!     type Other = (Head::Other, Tail::Other);
 //!     fn swap(self) -> Self::Other {
-//!         Pair(self.0.swap(), self.1.swap())
+//!         (self.0.swap(), self.1.swap())
 //!     }
 //! }
 //! 
-//! # use tuple_list::tuple_list;
 //! let original = tuple_list!(4, String::from("2"), 7, String::from("13"));
 //! 
 //! // Tuple lists implement `SwapStringAndInt` by calling `SwapStringAndInt::swap`
@@ -336,39 +329,6 @@
 //! 3. Obviously, as soon as rust implements variadic generics, 
 //!    this crate will become obsolete and deprecated.
 
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Debug,
-    Default,
-    Hash,
-)]
-/// Structure which represents empty tuple list.
-pub struct Empty;
-
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Debug,
-    Default,
-    Hash,
-)]
-/// Structure which represents non-empty tuple list.
-pub struct Pair<Head, Tail: TupleList>(
-    /// first element of a tuple list
-    pub Head,
-    /// Tuple list containing the remainder of the elements.
-    pub Tail,
-);
-
 /// Trait providing conversion from tuple list into tuple.
 ///
 /// Generic trait implemented for all tuple lists (up to 12 elements).
@@ -379,11 +339,11 @@ pub struct Pair<Head, Tail: TupleList>(
 /// use crate::tuple_list::tuple_list;
 /// use crate::tuple_list::TupleList;
 /// 
-/// let tuple_list = tuple_list!(1, false, String::from("abc"));
+/// let tuple_list = tuple_list!(1, false, "abc");
 /// 
 /// assert_eq!(
 ///     tuple_list.into_tuple(),
-///     (1, false, String::from("abc")),
+///     (1, false, "abc"),
 /// );
 /// ```
 pub trait TupleList {
@@ -402,14 +362,12 @@ pub trait TupleList {
 /// 
 /// ```
 /// use crate::tuple_list::Tuple;
-/// use crate::tuple_list::Pair;
-/// use crate::tuple_list::Empty;
 /// 
-/// let tuple = (1, false, String::from("abc"));
+/// let tuple = (1, false, "abc");
 /// 
 /// assert_eq!(
 ///     tuple.into_tuple_list(),
-///     Pair(1, Pair(false, Pair(String::from("abc"), Empty))),
+///     (1, (false, ("abc", ()))),
 /// );
 /// ```
 pub trait Tuple {
@@ -545,14 +503,12 @@ pub trait NonEmptyTuple: Tuple {
 /// 
 /// ```
 /// use tuple_list::tuple_list;
-/// use tuple_list::Pair;
-/// use tuple_list::Empty;
 /// 
 /// let list = tuple_list!(10, false, "foo");
 /// 
 /// assert_eq!(
 ///   list,
-///   Pair(10, Pair(false, Pair("foo", Empty))),
+///   (10, (false, ("foo", ()))),
 /// )
 /// ```
 /// 
@@ -570,8 +526,8 @@ pub trait NonEmptyTuple: Tuple {
 /// use tuple_list::tuple_list_type;
 /// 
 /// let list: tuple_list_type!(
-///     &'static str, 
-///     HashMap<i32, i32>, 
+///     &'static str,
+///     HashMap<i32, i32>,
 ///     <std::vec::Vec<bool> as IntoIterator>::Item,
 /// ) = tuple_list!("foo", HashMap::new(), false);
 /// ```
@@ -594,19 +550,19 @@ pub trait NonEmptyTuple: Tuple {
 /// to avoid ambiguity, but result still won't be ergonomic and probably isn't worth it.
 #[macro_export]
 macro_rules! tuple_list {
-    () => ( $crate::Empty );
+    () => ( () );
 
     // handling simple identifiers, for limited types and patterns support
-    ($i:ident)  => ( $crate::Pair($i, $crate::Empty) );
-    ($i:ident,) => ( $crate::Pair($i, $crate::Empty) );
-    ($i:ident, $($e:ident),*)  => ( $crate::Pair($i, tuple_list!($($e),*)) );
-    ($i:ident, $($e:ident),*,) => ( $crate::Pair($i, tuple_list!($($e),*)) );
+    ($i:ident)  => ( ($i, ()) );
+    ($i:ident,) => ( ($i, ()) );
+    ($i:ident, $($e:ident),*)  => ( ($i, $crate::tuple_list!($($e),*)) );
+    ($i:ident, $($e:ident),*,) => ( ($i, $crate::tuple_list!($($e),*)) );
 
     // handling complex expressions
-    ($i:expr)  => ( $crate::Pair($i, $crate::Empty) );
-    ($i:expr,) => ( $crate::Pair($i, $crate::Empty) );
-    ($i:expr, $($e:expr),*)  => ( $crate::Pair($i, tuple_list!($($e),*)) );
-    ($i:expr, $($e:expr),*,) => ( $crate::Pair($i, tuple_list!($($e),*)) );
+    ($i:expr)  => ( ($i, ()) );
+    ($i:expr,) => ( ($i, ()) );
+    ($i:expr, $($e:expr),*)  => ( ($i, $crate::tuple_list!($($e),*)) );
+    ($i:expr, $($e:expr),*,) => ( ($i, $crate::tuple_list!($($e),*)) );
 }
 
 /// Macro creating tuple list types from list of element types.
@@ -614,12 +570,12 @@ macro_rules! tuple_list {
 /// See macro `tuple_list!` for details.
 #[macro_export]
 macro_rules! tuple_list_type {
-    () => ( $crate::Empty );
-    
-    ($i:ty)  => ( $crate::Pair<$i, $crate::Empty> );
-    ($i:ty,) => ( $crate::Pair<$i, $crate::Empty> );
-    ($i:ty, $($e:ty),*)  => ( $crate::Pair<$i, tuple_list_type!($($e),*)> );
-    ($i:ty, $($e:ty),*,) => ( $crate::Pair<$i, tuple_list_type!($($e),*)> );
+    () => ( () );
+
+    ($i:ty)  => ( ($i, ()) );
+    ($i:ty,) => ( ($i, ()) );
+    ($i:ty, $($e:ty),*)  => ( ($i, $crate::tuple_list_type!($($e),*)) );
+    ($i:ty, $($e:ty),*,) => ( ($i, $crate::tuple_list_type!($($e),*)) );
 }
 
 // helper, returns first argument, ignores the rest
@@ -638,13 +594,13 @@ macro_rules! list_tail {
 // defines Tuple, TupleList, TupleCons, NonEmptyTuple and AsTupleOfRefs
 macro_rules! define_tuple_list_traits {
     () => (
-        impl TupleList for Empty {
+        impl TupleList for () {
             type Tuple = ();
             fn into_tuple(self) {}
         }
         impl Tuple for () {
-            type TupleList = Empty;
-            fn into_tuple_list(self) -> Empty { Empty }
+            type TupleList = ();
+            fn into_tuple_list(self) -> () { () }
         }
         impl<'a> AsTupleOfRefs<'a> for () {
             type TupleOfRefs = ();
