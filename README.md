@@ -1,6 +1,6 @@
 # Crate `tuple_list`
 
-Rust crate for variadic tuple metaprogramming.
+Rust crate for macro-free variadic tuple metaprogramming.
 
 Provides a way to recursively define traits for
 tuples of arbitrary size.
