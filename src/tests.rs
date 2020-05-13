@@ -303,13 +303,13 @@ fn swap_string_and_int_tuple() {
         fn swap(self) {}
     }
 
-    impl<Head, Tail, TailOther, T> SwapStringAndInt for T where 
+    impl<Head, Tail, TailOther, T> SwapStringAndInt for T where
         T: NonEmptyTuple<Head=Head, Tail=Tail>,
         Head: SwapStringAndInt,
         Tail: Tuple + SwapStringAndInt<Other=TailOther>,
         TailOther: TupleCons<Head::Other>,
     {
-        type Other = TailOther::ConstructedTuple; // resulting from TupleCons
+        type Other = TailOther::ConsResult;
         fn swap(self) -> Self::Other {
             let (head, tail) = self.uncons();
             return TupleCons::cons(head.swap(), tail.swap());

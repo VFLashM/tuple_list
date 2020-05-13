@@ -535,23 +535,23 @@ pub trait AsTupleOfRefs<'a>: Tuple {
     type TupleOfRefs: Tuple + 'a;
     type TupleOfMutRefs: Tuple + 'a;
 
-    /// Convertes reference to tuple into tuple of references.
+    /// Converts reference to tuple into tuple of references.
     fn as_tuple_of_refs(&'a self) -> Self::TupleOfRefs;
 
-    /// Convertes mutable reference to tuple into tuple of mutable references.
+    /// Converts mutable reference to tuple into tuple of mutable references.
     fn as_tuple_of_mut_refs(&'a mut self) -> Self::TupleOfMutRefs;
 }
 
 /// Trait providing tuple construction function, allows to prepend a value to a tuple.
-/// 
-/// 
 // TODO: when rust gets generic associated types
 //       move this trait content into Tuple
 pub trait TupleCons<Head>: Tuple {
     /// Tuple with `Head` prepended to `Self`
-    type ConstructedTuple: Tuple;
+    type ConsResult: Tuple;
 
     /// Constructs a tuple from `head` value and `tail` tuple by prepending `head` to `tail`.
+    /// 
+    /// Reverse of `NonEmptyTuple::uncons`.
     /// 
     /// # Examples
     /// 
@@ -576,7 +576,7 @@ pub trait TupleCons<Head>: Tuple {
     ///     (4, false, "foo"),
     /// );
     /// ```
-    fn cons(head: Head, tail: Self) -> Self::ConstructedTuple;
+    fn cons(head: Head, tail: Self) -> Self::ConsResult;
 }
 
 /// Trait allowing to recursively deconstruct tuples.
@@ -589,17 +589,16 @@ pub trait TupleCons<Head>: Tuple {
 /// Unofrtunately, it's not quite complete and is pretty unusable as of now.
 /// 
 /// In order ot be usable outside of this crate it needs support
-/// for trait specializations in rust.
-/// 
-/// In order to properly support implementing traits using for non-value `self`,
-/// it needs support for generic associate types.
+/// for trait specializations in Rust.
 pub trait NonEmptyTuple: Tuple {
     /// First element of `Self` tuple.
     type Head;
     /// Tuple of remaining elements of `Self` tuple.
     type Tail: Tuple;
 
-    /// Reverse of `TupleCons::cons`, splits `Self` tuple into head value and tail tuple.
+    /// Splits `Self` tuple into head value and tail tuple.
+    /// 
+    /// Reverse of `TupleCons::cons`.
     /// 
     /// # Examples
     /// 
@@ -607,25 +606,29 @@ pub trait NonEmptyTuple: Tuple {
     /// use tuple_list::NonEmptyTuple;
     /// 
     /// let abcz = (4, false, "foo");
-    /// let (a, bcz) = NonEmptyTuple::uncons(abcz);
-    /// let (b, cz) = NonEmptyTuple::uncons(bcz);
-    /// let (c, z)  = NonEmptyTuple::uncons(cz);
     /// 
+    /// let (a, bcz) = NonEmptyTuple::uncons(abcz);
     /// assert_eq!(a, 4);
+    /// assert_eq!(bcz, (false, "foo"));
+    /// 
+    /// let (b, cz) = NonEmptyTuple::uncons(bcz);
     /// assert_eq!(b, false);
+    /// assert_eq!(cz, ("foo",));
+    /// 
+    /// let (c, z)  = NonEmptyTuple::uncons(cz);
     /// assert_eq!(c, "foo");
     /// assert_eq!(z, ());
     /// ```
     fn uncons(self) -> (Self::Head, Self::Tail);
 
     /// Returns first element of a tuple.
-    ///
-    /// Same as `TupleCons::uncons().0`.
+    /// 
+    /// Same as `NonEmptyTuple::uncons().0`.
     fn head(self) -> Self::Head;
 
     /// Returns all but the first element of a tuple.
     /// 
-    /// Same as `TupleCons::uncons().1`.
+    /// Same as `NonEmptyTuple::uncons().1`.
     fn tail(self) -> Self::Tail;
 }
 
@@ -652,11 +655,11 @@ pub trait NonEmptyTuple: Tuple {
 /// ```
 /// # use tuple_list::tuple_list;
 /// # use std::collections::HashMap;
-/// // trivial types work just fine with tuple_list!
+/// // Trivial types work just fine with `tuple_list!`.
 /// let list: tuple_list_type!(i32, bool, String) = Default::default();
 /// 
-/// // more complex types will fail when using tuple_list!
-/// // but will work with tuple_list_type!
+/// // More complex types will fail when using `tuple_list!`,
+/// // but will work with `tuple_list_type!`.
 /// use tuple_list::tuple_list_type;
 /// 
 /// let list: tuple_list_type!(
@@ -670,7 +673,6 @@ pub trait NonEmptyTuple: Tuple {
 /// 
 /// ```
 /// # use tuple_list::tuple_list;
-/// #
 /// let tuple_list!(a, b, c) = tuple_list!(10, false, "foo");
 /// 
 /// assert_eq!(a, 10);
@@ -678,10 +680,7 @@ pub trait NonEmptyTuple: Tuple {
 /// assert_eq!(c, "foo");
 /// ```
 /// 
-/// Unfortunately, due to rust macro limitations only simple, non-nested match patterns are supported.
-/// 
-/// It is technically possible to create two separate traits for tuples and tuple lists in order
-/// to avoid ambiguity, but result still won't be ergonomic and probably isn't worth it.
+/// Unfortunately, due to Rust macro limitations only simple, non-nested match patterns are supported.
 #[macro_export]
 macro_rules! tuple_list {
     () => ( () );
@@ -781,8 +780,8 @@ macro_rules! define_tuple_list_traits {
             fn tail(self) -> Self::Tail { self.uncons().1 }
         }
         impl<$($x),*> TupleCons<list_head!($($x),*)> for list_tail!($($x),*) {
-            type ConstructedTuple = ($($x),*,);
-            fn cons(head: list_head!($($x),*), tail: Self) -> Self::ConstructedTuple {
+            type ConsResult = ($($x),*,);
+            fn cons(head: list_head!($($x),*), tail: Self) -> Self::ConsResult {
                 let list_head!($($x),*) = head;
                 let list_tail!($($x),*) = tail;
                 return ($($x),*,);
