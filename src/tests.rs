@@ -651,3 +651,11 @@ fn traits() {
     assert_eq!(tuple_list!(String::from("foo"), false), tuple_list!(String::from("foo"), false));
     assert_ne!(tuple_list!(String::from("foo"), false), tuple_list!(String::from("foo"), true));
 }
+
+#[test]
+fn tuple_list_size() {
+    assert_eq!(0, <tuple_list_type!() as TupleList>::TUPLE_LIST_SIZE);
+    assert_eq!(1, <tuple_list_type!(i32) as TupleList>::TUPLE_LIST_SIZE);
+    assert_eq!(2, <tuple_list_type!(i32, String) as TupleList>::TUPLE_LIST_SIZE);
+    assert_eq!(3, <tuple_list_type!(i32, String, bool) as TupleList>::TUPLE_LIST_SIZE);
+}

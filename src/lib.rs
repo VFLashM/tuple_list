@@ -100,9 +100,20 @@
 //!     fn fmt(&self) -> String { String::from("<empty>") }
 //! }
 //! 
-//! // In order to avoid having trailing spaces,
-//! // we can define custom implementation
-//! // for tuple lists of exactly one element.
+//! // In order to avoid having trailing spaces, we need
+//! // custom logic for tuple lists of exactly one element.
+//! //
+//! // The simplest way is to use `TupleList::TUPLE_LIST_SIZE`
+//! // associated constant, but there is also another option.
+//! //
+//! // Instead of defining initial condition for empty tuple list
+//! // and recursion for non-empty ones, we can define *two*
+//! // initial conditions: one for an empty tuple list and
+//! // one for tuple lists of exactly one element.
+//! // Then we can define recursion for tuple lists of two or more elements.
+//! //
+//! // Here we define second initial condition for tuple list
+//! // of exactly one element.
 //! impl<Head> CustomDisplay for (Head, ()) where
 //!     Head: CustomDisplay,
 //! {
@@ -111,7 +122,7 @@
 //!     }
 //! }
 //! 
-//! // Recursion step is defind for all tuple lists
+//! // Recursion step is defined for all tuple lists
 //! // longer than one element.
 //! impl<Head, Next, Tail> CustomDisplay for (Head, (Next, Tail)) where
 //!     Head: CustomDisplay,
@@ -484,13 +495,23 @@ pub trait TupleList {
     /// Tuple type corresponding to given tuple list.
     type Tuple: Tuple;
 
-    /// Converts TupleList to tuple.
+    /// Constant representing tuple list size.
+    const TUPLE_LIST_SIZE: usize;
+
+    /// Converts tuple list into tuple.
     fn into_tuple(self) -> Self::Tuple;
 }
 
 /// Trait providing conversion from tuple into tuple list.
 /// 
 /// Generic trait implemented for all tuples (up to 12 elements).
+/// 
+/// Please note that `Tuple` trait does not have
+/// `TUPLE_SIZE` constant like `TupleList` does.
+/// 
+/// This is intentional, in order to avoid accidental use of it for tuple lists.
+/// 
+/// You can still get tuple size as `Tuple::TupleList::TUPLE_LIST_SIZE`.
 /// 
 /// # Examples
 /// 
@@ -729,6 +750,7 @@ macro_rules! define_tuple_list_traits {
     () => (
         impl TupleList for () {
             type Tuple = ();
+            const TUPLE_LIST_SIZE: usize = 0;
             fn into_tuple(self) {}
         }
         impl Tuple for () {
@@ -745,6 +767,7 @@ macro_rules! define_tuple_list_traits {
     ($($x:ident),*) => (
         impl<$($x),*> TupleList for tuple_list_type!($($x),*) {
             type Tuple = ($($x),*,);
+            const TUPLE_LIST_SIZE: usize = <list_tail!($($x),*) as Tuple>::TupleList::TUPLE_LIST_SIZE + 1;
             fn into_tuple(self) -> Self::Tuple {
                 let tuple_list!($($x),*) = self;
                 return ($($x),*,)
