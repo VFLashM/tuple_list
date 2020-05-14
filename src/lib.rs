@@ -71,7 +71,7 @@
 //! let mut tuple_list = tuple_list!(2, false, String::from("abc"));
 //! tuple_list.plus_one();
 //! 
-//! // tuple_list! macro also allows us to unpack tuple lists
+//! // `tuple_list!` macro also allows us to unpack tuple lists
 //! let tuple_list!(a, b, c) = tuple_list;
 //! assert_eq!(a, 3);
 //! assert_eq!(b, true);
@@ -370,8 +370,8 @@
 //! 
 //! // Unlike `Append` trait which is defined for tuple lists,
 //! // `append` function works on regular tuples.
-//! let original  = (1, "foo", false);
-//! let appended  = (1, "foo", false, 5);
+//! let original = (1, "foo", false);
+//! let appended = (1, "foo", false, 5);
 //! 
 //! assert_eq!(append(original, 5), appended);
 //! ```
@@ -491,9 +491,9 @@
 ///     (1, false, "abc"),
 /// );
 /// ```
-pub trait TupleList {
+pub trait TupleList where Self: Sized {
     /// Tuple type corresponding to given tuple list.
-    type Tuple: Tuple;
+    type Tuple: Tuple<TupleList=Self>;
 
     /// Constant representing tuple list size.
     const TUPLE_LIST_SIZE: usize;
@@ -525,9 +525,9 @@ pub trait TupleList {
 ///     (1, (false, ("abc", ()))),
 /// );
 /// ```
-pub trait Tuple {
+pub trait Tuple where Self: Sized {
     /// Tuple list type corresponding to given tuple.
-    type TupleList: TupleList;
+    type TupleList: TupleList<Tuple=Self>;
 
     /// Converts tuple into tuple list.
     fn into_tuple_list(self) -> Self::TupleList;

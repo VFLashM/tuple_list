@@ -89,20 +89,20 @@ fn all_features() {
     }
 
     // impl for refs
-    impl<'a, T, RT, RTL> NumberOrStringRef for &'a T where
+    impl<'a, T, RT> NumberOrStringRef for &'a T where
         T: AsTupleOfRefs<'a, TupleOfRefs=RT>,
-        RT: Tuple<TupleList=RTL> + 'a,
-        RTL: NumberOrStringRef + TupleList,
+        RT: Tuple + 'a,
+        RT::TupleList: NumberOrStringRef + TupleList,
     {
         fn format_ref(self) -> String {
             self.as_tuple_of_refs().into_tuple_list().format_ref()
         }
     }
 
-    impl<'a, T, RT, RTL> NumberOrStringMutRef for &'a mut T where
+    impl<'a, T, RT> NumberOrStringMutRef for &'a mut T where
         T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,
-        RT: Tuple<TupleList=RTL> + 'a,
-        RTL: NumberOrStringMutRef + TupleList,
+        RT: Tuple + 'a,
+        RT::TupleList: NumberOrStringMutRef + TupleList,
     {
         fn plus_one_ref(self) {
             self.as_tuple_of_mut_refs().into_tuple_list().plus_one_ref()
@@ -192,9 +192,9 @@ fn value_single_trait() {
         }
     }
 
-    fn into_other<T, TL, OTL>(tuple: T) -> OTL::Tuple where
-        T: Tuple<TupleList=TL>,
-        TL: TupleList + NumberOrString<OtherType=OTL>,
+    fn into_other<T, OTL>(tuple: T) -> OTL::Tuple where
+        T: Tuple,
+        T::TupleList: NumberOrString<OtherType=OTL>,
         OTL: TupleList,
     {
         tuple.into_tuple_list().into_other().into_tuple()
@@ -251,9 +251,9 @@ fn swap_string_and_int_dual_traits_recursion() {
     }
 
     // implementation of `SwapStringAndInt` for tuples
-    impl<T, TL, OtherTL> SwapStringAndInt for T where
-        T: Tuple<TupleList=TL>,
-        TL: TupleList + SwapStringAndIntTupleList<Other=OtherTL>,
+    impl<T, OtherTL> SwapStringAndInt for T where
+        T: Tuple,
+        T::TupleList: SwapStringAndIntTupleList<Other=OtherTL>,
         OtherTL: TupleList,
     {
         type Other = OtherTL::Tuple;
@@ -458,10 +458,10 @@ fn plus_one_tuple_list_trait_with_lifetime() {
     }
 
     // original trait implementation for regular tuples
-    impl<'a, T, RT, RTL> PlusOne<'a> for T where
+    impl<'a, T, RT> PlusOne<'a> for T where
         T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=RTL> + 'a,        // tuple of references which can be converted into tuple list
-        RTL: TupleList + PlusOneTupleList,    // tuple list which implements recursive trait
+        RT: Tuple + 'a,                          // tuple of references which can be converted into tuple list
+        RT::TupleList: PlusOneTupleList,         // tuple list which implements recursive trait
     {
         fn plus_one(&'a mut self) {
             // 1. converts reference to tuple into tuple of references
@@ -521,11 +521,10 @@ fn plus_one_tuple_list_trait_without_lifetime() {
     // regular tuples do not implement any traits
     // but it's possible to add a helper function which
     // will accept tuple and call function of recursive trait
-    fn plus_one<'a, T, RT, Head, Tail>(tuple: &'a mut T) where
-        T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>,           // tuple argument which can be converted into tuple of references
-        RT: Tuple<TupleList=(Head, Tail)> + 'a,     // tuple of references which can be converted into tuple list
-        (Head, Tail): TupleList + PlusOneTupleList, // tuple list which implements recursive trait
-        Tail: TupleList,
+    fn plus_one<'a, T, RT>(tuple: &'a mut T) where
+        T: AsTupleOfRefs<'a, TupleOfMutRefs=RT>, // tuple argument which can be converted into tuple of references
+        RT: Tuple + 'a,                          // tuple of references which can be converted into tuple list
+        RT::TupleList: PlusOneTupleList,         // tuple list which implements recursive trait
     {
         // 1. converts reference to tuple into tuple of references
         // 2. converts tuple of references into tuple list of references
