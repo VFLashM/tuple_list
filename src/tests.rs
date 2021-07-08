@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(feature = "std")]
 #[test]
 fn all_features() {
     trait NumberOrString {
@@ -152,6 +153,7 @@ fn all_features() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn value_single_trait() {
     trait NumberOrString {
         type OtherType;
@@ -192,6 +194,7 @@ fn value_single_trait() {
         }
     }
 
+    #[cfg(feature = "std")]
     fn into_other<T, OTL>(tuple: T) -> OTL::Tuple where
         T: Tuple,
         T::TupleList: NumberOrString<OtherType=OTL>,
@@ -209,6 +212,7 @@ fn value_single_trait() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn swap_string_and_int_dual_traits_recursion() {
     // real trait, implemented for tuples and primitive types
     trait SwapStringAndInt     {
@@ -218,11 +222,11 @@ fn swap_string_and_int_dual_traits_recursion() {
     impl SwapStringAndInt for i32 {
         type Other = String;
         fn swap(self) -> String { self.to_string() }
-    };
+    }
     impl SwapStringAndInt for String {
         type Other = i32;
         fn swap(self) -> i32 { self.parse().unwrap() }
-    };
+    }
 
     // helper trait, only used for recursion on tuple lists
     // goes to SwapStringAndInt for action conversion
@@ -284,6 +288,7 @@ fn swap_string_and_int_dual_traits_recursion() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn swap_string_and_int_tuple() {
     trait SwapStringAndInt {
         type Other;
@@ -333,6 +338,7 @@ fn swap_string_and_int_tuple() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn custom_display_tuple() {
     // Define trait and implement it for several standard types.
     trait CustomDisplay {
@@ -371,6 +377,7 @@ fn custom_display_tuple() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn plus_one_tuple() {
     trait PlusOne<'a> {
         fn plus_one(&'a mut self);
@@ -418,6 +425,7 @@ fn plus_one_tuple() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn plus_one_tuple_list_trait_with_lifetime() {
     // trait needs free generic lifetime argument
     // for implementation to be unambiguous
@@ -482,6 +490,7 @@ fn plus_one_tuple_list_trait_with_lifetime() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn plus_one_tuple_list_trait_without_lifetime() {
     // define trait and implement it for primitive types
     trait PlusOne {
@@ -568,6 +577,7 @@ fn triple() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn complex_types() {
     use std::collections::HashMap;
     let t : tuple_list_type!(i32, &str, HashMap<i32, i32>) = (1, ("abc", (HashMap::new(), ())));
@@ -617,6 +627,7 @@ fn trailing_comma() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn traits() {
     // test clone (and eq)
     let list : tuple_list_type!(bool, i32, String) = tuple_list!(false, 1, String::from("abc"));
@@ -655,6 +666,8 @@ fn traits() {
 fn tuple_list_size() {
     assert_eq!(0, <tuple_list_type!() as TupleList>::TUPLE_LIST_SIZE);
     assert_eq!(1, <tuple_list_type!(i32) as TupleList>::TUPLE_LIST_SIZE);
+    #[cfg(feature = "std")]
     assert_eq!(2, <tuple_list_type!(i32, String) as TupleList>::TUPLE_LIST_SIZE);
+    #[cfg(feature = "std")]
     assert_eq!(3, <tuple_list_type!(i32, String, bool) as TupleList>::TUPLE_LIST_SIZE);
 }
