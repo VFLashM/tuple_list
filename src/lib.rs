@@ -1,5 +1,6 @@
 #![allow(non_snake_case)] // non-snake case identifiers used in define_tuple_list_traits! for simplicity
 #![doc(html_playground_url = "https://play.rust-lang.org/")]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! Crate for macro-free variadic tuple metaprogramming.
 //! 

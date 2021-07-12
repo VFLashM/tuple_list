@@ -10,3 +10,6 @@ repository = "https://github.com/VFLashM/tuple_list/"
 license = "MIT"
 keywords = ["tuple", "variadic", "generic", "meta", "metaprogramming"]
 categories = ["data-structures", "rust-patterns"]
+
+[features]
+std = []
